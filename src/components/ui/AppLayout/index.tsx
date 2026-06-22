@@ -31,10 +31,6 @@ function getHeaderCenter(pathname: string) {
     return menu?.label ?? 'Aplicativo';
   }
 
-  if (pathname.includes('/game/board')) {
-    return 'Tabuleiro';
-  }
-
   return null;
 }
 
@@ -46,6 +42,7 @@ export function AppLayout() {
   const activeAppMenuKey = getAppMenuKeyFromPath(location.pathname);
   const isBottomNavigatorMenu = APP_MENU_ITEMS.some((item) => item.key === activeAppMenuKey);
   const isRoomDetails = /^\/rooms\/[^/]+$/.test(location.pathname);
+  const isGameBoard = /^\/rooms\/[^/]+\/game\/board$/.test(location.pathname);
   const showCenteredLogo = isHome || isRoomDetails;
   const headerCenter = getHeaderCenter(location.pathname);
 
@@ -68,67 +65,72 @@ export function AppLayout() {
 
   return (
     <Layout className="app-layout">
-      <Header className="app-layout__header">
-        <Flex align="center" justify="space-between" className="app-layout__header-inner">
-          <div className="app-layout__header-side">
-            {isBottomNavigatorMenu ? (
-              <Button
-                type="text"
-                icon={<LogoutOutlined />}
-                aria-label="Sair"
-                onClick={handleExitApp}
-              />
-            ) : activeAppMenuKey && roomId ? (
-              <Button
-                type="text"
-                icon={<ArrowLeftOutlined />}
-                aria-label="Voltar para partida"
-                onClick={() => navigate(`/rooms/${roomId}/app/partida`)}
-              />
-            ) : !isHome ? (
-              <Button
-                type="text"
-                icon={<ArrowLeftOutlined />}
-                aria-label="Voltar"
-                onClick={handleBack}
-              />
-            ) : null}
-          </div>
+      {!isGameBoard ? (
+        <Header className="app-layout__header">
+          <Flex align="center" justify="space-between" className="app-layout__header-inner">
+            <div className="app-layout__header-side">
+              {isBottomNavigatorMenu ? (
+                <Button
+                  type="text"
+                  icon={<LogoutOutlined />}
+                  aria-label="Sair"
+                  onClick={handleExitApp}
+                />
+              ) : activeAppMenuKey && roomId ? (
+                <Button
+                  type="text"
+                  icon={<ArrowLeftOutlined />}
+                  aria-label="Voltar para partida"
+                  onClick={() => navigate(`/rooms/${roomId}/app/partida`)}
+                />
+              ) : !isHome ? (
+                <Button
+                  type="text"
+                  icon={<ArrowLeftOutlined />}
+                  aria-label="Voltar"
+                  onClick={handleBack}
+                />
+              ) : null}
+            </div>
 
-          <div className="app-layout__header-center">
-            {showCenteredLogo ? (
-              <img src="/logo_full.png" alt="O Capital" className="app-layout__logo" />
-            ) : (
-              <Typography.Text strong className="app-layout__header-label">
-                {headerCenter}
-              </Typography.Text>
-            )}
-          </div>
+            <div className="app-layout__header-center">
+              {showCenteredLogo ? (
+                <img src="/logo_full.png" alt="O Capital" className="app-layout__logo" />
+              ) : (
+                <Typography.Text strong className="app-layout__header-label">
+                  {headerCenter}
+                </Typography.Text>
+              )}
+            </div>
 
-          <div className="app-layout__header-side app-layout__header-side--right">
-            {isBottomNavigatorMenu && roomId ? (
-              <Button
-                type="text"
-                icon={<HistoryOutlined />}
-                aria-label="Histórico"
-                onClick={() => navigate(`/rooms/${roomId}/app/${APP_HISTORY_MENU.key}`)}
-              />
-            ) : isRoomDetails && roomId ? (
-              <Button
-                type="text"
-                icon={<AppstoreOutlined />}
-                aria-label="Acessar tabuleiro"
-                onClick={() => navigate(`/rooms/${roomId}/game/board`)}
-              />
-            ) : null}
-          </div>
-        </Flex>
-      </Header>
+            <div className="app-layout__header-side app-layout__header-side--right">
+              {isBottomNavigatorMenu && roomId ? (
+                <Button
+                  type="text"
+                  icon={<HistoryOutlined />}
+                  aria-label="Historico"
+                  onClick={() => navigate(`/rooms/${roomId}/app/${APP_HISTORY_MENU.key}`)}
+                />
+              ) : isRoomDetails && roomId ? (
+                <Button
+                  type="text"
+                  icon={<AppstoreOutlined />}
+                  aria-label="Acessar tabuleiro"
+                  onClick={() => navigate(`/rooms/${roomId}/game/board`)}
+                />
+              ) : null}
+            </div>
+          </Flex>
+        </Header>
+      ) : null}
+
       <Content
         className={
-          activeAppMenuKey
-            ? 'app-layout__content app-layout__content--with-bottom-nav'
-            : 'app-layout__content'
+          isGameBoard
+            ? 'app-layout__content app-layout__content--game-board'
+            : activeAppMenuKey
+              ? 'app-layout__content app-layout__content--with-bottom-nav'
+              : 'app-layout__content'
         }
       >
         <Outlet />

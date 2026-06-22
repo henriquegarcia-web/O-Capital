@@ -1,10 +1,12 @@
-import { Result, Skeleton, Space, Typography } from 'antd';
-import { useParams } from 'react-router-dom';
+import { ArrowLeftOutlined } from '@ant-design/icons';
+import { Button, Result, Skeleton } from 'antd';
+import { useNavigate, useParams } from 'react-router-dom';
 
-import { PlayersGrid } from '@/components/ui';
+import { GameBoard } from '@/components/ui';
 import { useRoom } from '@/hooks';
 
 export function GameBoardPage() {
+  const navigate = useNavigate();
   const { roomId } = useParams();
   const { room, players, loading } = useRoom(roomId);
 
@@ -17,14 +19,17 @@ export function GameBoardPage() {
   }
 
   return (
-    <Space orientation="vertical" size={16} style={{ width: '100%' }}>
-      <Typography.Title level={2} style={{ margin: 0 }}>
-        Tabuleiro
-      </Typography.Title>
-      <Typography.Title level={4} style={{ margin: 0 }}>
-        Jogadores na sala {room.name}
-      </Typography.Title>
-      <PlayersGrid players={players} />
-    </Space>
+    <div className="game-board-page">
+      <Button
+        type="primary"
+        shape="circle"
+        size="large"
+        icon={<ArrowLeftOutlined />}
+        aria-label="Voltar"
+        className="game-board-page__back"
+        onClick={() => navigate(-1)}
+      />
+      <GameBoard room={room} players={players} />
+    </div>
   );
 }

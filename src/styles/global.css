@@ -82,6 +82,13 @@ body {
   padding: 12px;
 }
 
+.app-layout__content--game-board {
+  min-width: max-content;
+  min-height: 100vh;
+  padding: 0;
+  overflow: visible;
+}
+
 .app-layout__content--with-bottom-nav {
   padding-bottom: 72px;
 }
@@ -196,4 +203,423 @@ body {
 
 .app-bottom-navigation__item--active {
   background: #ff8b1f;
+}
+
+.board-space-color {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgb(15 23 42 / 16%);
+}
+
+.board-space-heading {
+  min-width: 0;
+}
+
+.board-space-business-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  color: #1f2933;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+}
+
+.banker-control-button {
+  flex: 1 1 148px;
+  min-width: 0;
+}
+
+.banker-players-table {
+  width: 100%;
+}
+
+.banker-players-table .ant-table {
+  width: 100%;
+}
+
+.banker-players-table .ant-table-cell {
+  overflow: hidden;
+}
+
+.banker-player-name {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  color: #1f2933;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.banker-player-name--current {
+  color: #15803d;
+}
+
+.banker-player-name--eliminated {
+  color: #dc2626;
+}
+
+.game-board-shell {
+  display: flex;
+  justify-content: center;
+  width: max-content;
+  min-width: 100%;
+  padding: 72px 24px 24px;
+}
+
+.game-board {
+  position: relative;
+  display: grid;
+  grid-template-rows: repeat(8, 90px);
+  grid-template-columns: repeat(14, 104px);
+  gap: 6px;
+  width: max-content;
+  padding: 6px;
+  background:
+    linear-gradient(135deg, rgb(255 255 255 / 88%), rgb(248 250 252 / 94%)),
+    #e5e7eb;
+  border: 1px solid #d9dee7;
+  border-radius: 8px;
+  box-shadow: 0 18px 48px rgb(15 23 42 / 12%);
+}
+
+.game-board-page {
+  width: max-content;
+  min-width: 100vw;
+  min-height: 100vh;
+}
+
+.game-board-page__back {
+  position: fixed;
+  top: 14px;
+  left: 14px;
+  z-index: 20;
+  box-shadow: 0 12px 28px rgb(15 23 42 / 20%);
+}
+
+.game-board__space {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  min-height: 0;
+  padding: 14px 8px 8px;
+  overflow: hidden;
+  background: #ffffff;
+  border: 1px solid #dfe4ea;
+  border-radius: 6px;
+}
+
+.game-board__space--current {
+  border-color: #ff8b1f;
+  box-shadow:
+    inset 0 0 0 1px #ff8b1f,
+    0 0 0 2px rgb(255 139 31 / 18%);
+}
+
+.game-board__space-strip {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 9px;
+}
+
+.game-board__space-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  min-width: 24px;
+  height: 22px;
+  padding: 0 7px;
+  color: #475569;
+  font-size: 12px;
+  line-height: 1;
+  background: #f1f5f9;
+  border-radius: 999px;
+}
+
+.game-board__space-name {
+  display: -webkit-box;
+  max-width: 100%;
+  margin: 0;
+  overflow: hidden;
+  color: #1f2933;
+  font-size: 12px;
+  line-height: 1.18;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.game-board__center {
+  z-index: 1;
+  display: flex;
+  grid-row: 2 / 8;
+  grid-column: 2 / 14;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 92%), rgb(248 250 252 / 92%)),
+    #ffffff;
+  border: 1px solid #dfe4ea;
+  border-radius: 8px;
+}
+
+.game-board__pawn {
+  position: absolute;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  background: #ffffff;
+  border: 3px solid;
+  border-radius: 50%;
+  box-shadow: 0 10px 22px rgb(15 23 42 / 24%);
+  transform: translate(-50%, -50%);
+  transition:
+    top 280ms cubic-bezier(0.22, 1, 0.36, 1),
+    left 280ms cubic-bezier(0.22, 1, 0.36, 1),
+    margin 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.game-board__pawn--idle {
+  animation: pawn-idle-hop 980ms ease-in-out infinite;
+}
+
+.game-board__pawn--walking {
+  animation: pawn-step-arc 320ms ease-in-out infinite;
+}
+
+@keyframes pawn-idle-hop {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) translateY(0) scale(1);
+  }
+
+  50% {
+    transform: translate(-50%, -50%) translateY(-6px) scale(1.03);
+  }
+}
+
+@keyframes pawn-step-arc {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) translateY(0) scale(1);
+  }
+
+  48% {
+    transform: translate(-50%, -50%) translateY(-22px) scale(1.08);
+  }
+}
+
+.dice-roll-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(15 23 42 / 64%);
+  backdrop-filter: blur(4px);
+}
+
+.dice-roll-overlay--exiting {
+  animation: dice-overlay-exit 420ms ease-in forwards;
+}
+
+.dice-roll-overlay__content {
+  animation: dice-content-enter 220ms ease-out both;
+}
+
+.dice-roll-overlay--exiting .dice-roll-overlay__content {
+  animation: dice-content-exit 420ms ease-in forwards;
+}
+
+.dice-roll-overlay__die-scene {
+  width: 96px;
+  height: 96px;
+  perspective: 680px;
+}
+
+.dice-roll-overlay__die-scene--delay .dice-roll-overlay__die-cube {
+  animation-delay: 0.14s;
+}
+
+.dice-roll-overlay__die-cube {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  transform-style: preserve-3d;
+  animation: dice-cube-roll 0.82s cubic-bezier(0.2, 0.65, 0.35, 1) infinite;
+}
+
+.dice-roll-overlay__die-cube--settled {
+  animation: dice-cube-settle 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.dice-roll-overlay__face {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(circle at 30% 22%, rgb(255 255 255 / 92%), transparent 28%),
+    #ffffff;
+  border: 2px solid #dbe1ea;
+  border-radius: 16px;
+  box-shadow:
+    inset 0 -10px 18px rgb(15 23 42 / 10%),
+    0 16px 32px rgb(15 23 42 / 26%);
+  backface-visibility: hidden;
+}
+
+.dice-roll-overlay__pip {
+  position: absolute;
+  width: 13px;
+  height: 13px;
+  background: #ff8b1f;
+  border-radius: 50%;
+  box-shadow: inset 0 1px 2px rgb(15 23 42 / 22%);
+}
+
+.dice-roll-overlay__pip--center {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.dice-roll-overlay__pip--top-left {
+  top: 21px;
+  left: 21px;
+}
+
+.dice-roll-overlay__pip--top-right {
+  top: 21px;
+  right: 21px;
+}
+
+.dice-roll-overlay__pip--middle-left {
+  top: 50%;
+  left: 21px;
+  transform: translateY(-50%);
+}
+
+.dice-roll-overlay__pip--middle-right {
+  top: 50%;
+  right: 21px;
+  transform: translateY(-50%);
+}
+
+.dice-roll-overlay__pip--bottom-left {
+  bottom: 21px;
+  left: 21px;
+}
+
+.dice-roll-overlay__pip--bottom-right {
+  right: 21px;
+  bottom: 21px;
+}
+
+.dice-roll-overlay__face--front {
+  transform: translateZ(48px);
+}
+
+.dice-roll-overlay__face--back {
+  transform: rotateY(180deg) translateZ(48px);
+}
+
+.dice-roll-overlay__face--right {
+  transform: rotateY(90deg) translateZ(48px);
+}
+
+.dice-roll-overlay__face--left {
+  transform: rotateY(-90deg) translateZ(48px);
+}
+
+.dice-roll-overlay__face--top {
+  transform: rotateX(90deg) translateZ(48px);
+}
+
+.dice-roll-overlay__face--bottom {
+  transform: rotateX(-90deg) translateZ(48px);
+}
+
+.dice-roll-overlay__label {
+  color: #ffffff;
+  font-size: 16px;
+}
+
+@keyframes dice-cube-roll {
+  0% {
+    transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg) translateY(0);
+  }
+
+  30% {
+    transform: rotateX(180deg) rotateY(120deg) rotateZ(28deg) translateY(-16px);
+  }
+
+  62% {
+    transform: rotateX(360deg) rotateY(260deg) rotateZ(-18deg) translateY(4px);
+  }
+
+  100% {
+    transform: rotateX(540deg) rotateY(420deg) rotateZ(0deg) translateY(0);
+  }
+}
+
+@keyframes dice-cube-settle {
+  0% {
+    transform: rotateX(42deg) rotateY(-36deg) rotateZ(10deg) translateY(-8px);
+  }
+
+  100% {
+    transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg) translateY(0);
+  }
+}
+
+@keyframes dice-content-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.96);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes dice-content-exit {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(-28px) scale(0.9);
+  }
+}
+
+@keyframes dice-overlay-exit {
+  0% {
+    background: rgb(15 23 42 / 64%);
+  }
+
+  100% {
+    background: rgb(15 23 42 / 0%);
+  }
 }

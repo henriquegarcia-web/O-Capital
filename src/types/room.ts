@@ -1,3 +1,5 @@
+import type { GameState } from './game';
+
 export type RoomStatus = 'waiting' | 'playing' | 'finished';
 
 export type Room = {
@@ -6,6 +8,7 @@ export type Room = {
   ownerId: string;
   status: RoomStatus;
   maxPlayers: number;
+  game?: GameState;
   createdAt: number;
   updatedAt: number;
 };
