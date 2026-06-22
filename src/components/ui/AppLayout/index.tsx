@@ -1,20 +1,138 @@
-import { Layout, Typography } from 'antd';
-import { Outlet } from 'react-router-dom';
+import {
+  AppstoreOutlined,
+  ArrowLeftOutlined,
+  HistoryOutlined,
+  LogoutOutlined,
+} from '@ant-design/icons';
+import { Button, Flex, Layout, Typography } from 'antd';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 
-const { Header, Content, Footer } = Layout;
+import { APP_HISTORY_MENU, APP_MENU_ITEMS } from '@/constants';
+import { clearCurrentRoomPlayerId } from '@/utils';
+
+const { Header, Content } = Layout;
+
+function getRoomIdFromPath(pathname: string) {
+  return pathname.match(/^\/rooms\/([^/]+)/)?.[1];
+}
+
+function getAppMenuKeyFromPath(pathname: string) {
+  return pathname.match(/^\/rooms\/[^/]+\/app\/([^/]+)/)?.[1];
+}
+
+function getHeaderCenter(pathname: string) {
+  const menuKey = getAppMenuKeyFromPath(pathname);
+
+  if (menuKey) {
+    const menu =
+      APP_MENU_ITEMS.find((item) => item.key === menuKey) ??
+      (APP_HISTORY_MENU.key === menuKey ? APP_HISTORY_MENU : null);
+
+    return menu?.label ?? 'Aplicativo';
+  }
+
+  if (pathname.includes('/game/board')) {
+    return 'Tabuleiro';
+  }
+
+  return null;
+}
 
 export function AppLayout() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const isHome = location.pathname === '/';
+  const roomId = getRoomIdFromPath(location.pathname);
+  const activeAppMenuKey = getAppMenuKeyFromPath(location.pathname);
+  const isBottomNavigatorMenu = APP_MENU_ITEMS.some((item) => item.key === activeAppMenuKey);
+  const isRoomDetails = /^\/rooms\/[^/]+$/.test(location.pathname);
+  const showCenteredLogo = isHome || isRoomDetails;
+  const headerCenter = getHeaderCenter(location.pathname);
+
+  function handleBack() {
+    if (isRoomDetails) {
+      navigate('/');
+      return;
+    }
+
+    navigate(-1);
+  }
+
+  function handleExitApp() {
+    if (roomId) {
+      clearCurrentRoomPlayerId(roomId);
+    }
+
+    navigate('/');
+  }
+
   return (
     <Layout className="app-layout">
       <Header className="app-layout__header">
-        <Typography.Title level={4} className="app-layout__title">
-          O Capital
-        </Typography.Title>
+        <Flex align="center" justify="space-between" className="app-layout__header-inner">
+          <div className="app-layout__header-side">
+            {isBottomNavigatorMenu ? (
+              <Button
+                type="text"
+                icon={<LogoutOutlined />}
+                aria-label="Sair"
+                onClick={handleExitApp}
+              />
+            ) : activeAppMenuKey && roomId ? (
+              <Button
+                type="text"
+                icon={<ArrowLeftOutlined />}
+                aria-label="Voltar para partida"
+                onClick={() => navigate(`/rooms/${roomId}/app/partida`)}
+              />
+            ) : !isHome ? (
+              <Button
+                type="text"
+                icon={<ArrowLeftOutlined />}
+                aria-label="Voltar"
+                onClick={handleBack}
+              />
+            ) : null}
+          </div>
+
+          <div className="app-layout__header-center">
+            {showCenteredLogo ? (
+              <img src="/logo_full.png" alt="O Capital" className="app-layout__logo" />
+            ) : (
+              <Typography.Text strong className="app-layout__header-label">
+                {headerCenter}
+              </Typography.Text>
+            )}
+          </div>
+
+          <div className="app-layout__header-side app-layout__header-side--right">
+            {isBottomNavigatorMenu && roomId ? (
+              <Button
+                type="text"
+                icon={<HistoryOutlined />}
+                aria-label="Histórico"
+                onClick={() => navigate(`/rooms/${roomId}/app/${APP_HISTORY_MENU.key}`)}
+              />
+            ) : isRoomDetails && roomId ? (
+              <Button
+                type="text"
+                icon={<AppstoreOutlined />}
+                aria-label="Acessar tabuleiro"
+                onClick={() => navigate(`/rooms/${roomId}/game/board`)}
+              />
+            ) : null}
+          </div>
+        </Flex>
       </Header>
-      <Content className="app-layout__content">
+      <Content
+        className={
+          activeAppMenuKey
+            ? 'app-layout__content app-layout__content--with-bottom-nav'
+            : 'app-layout__content'
+        }
+      >
         <Outlet />
       </Content>
-      <Footer className="app-layout__footer">O Capital</Footer>
     </Layout>
   );
 }

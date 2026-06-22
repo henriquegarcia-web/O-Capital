@@ -9,3 +9,7 @@ export type Room = {
   createdAt: number;
   updatedAt: number;
 };
+
+export type RoomSummary = Room & {
+  playerCount: number;
+};

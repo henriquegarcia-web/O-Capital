@@ -1,16 +1,22 @@
 import { App as AntApp, ConfigProvider } from 'antd';
 import type { PropsWithChildren } from 'react';
 
-import { AuthProvider } from '../AuthContext';
+import { APP_THEME } from '@/constants';
 
-const primaryColor = '#1f7a5f';
+import { AuthProvider } from '../AuthContext';
 
 export function AppProviders({ children }: PropsWithChildren) {
   return (
     <ConfigProvider
       theme={{
         token: {
-          colorPrimary: primaryColor,
+          colorPrimary: APP_THEME.primaryColor,
+        },
+        components: {
+          Card: {
+            bodyPadding: APP_THEME.cardPadding,
+            bodyPaddingSM: APP_THEME.cardPadding,
+          },
         },
       }}
     >
