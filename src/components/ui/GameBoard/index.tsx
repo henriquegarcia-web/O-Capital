@@ -1,9 +1,9 @@
-import { Avatar, Flex, Space, Tag, Tooltip, Typography } from 'antd';
+import { Avatar, Tooltip, Typography } from 'antd';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { BOARD_SPACES, PROFILE_COLORS, PROFILE_PHOTOS } from '@/constants';
-import type { BoardSpace, GameState, Player, Room } from '@/types';
-import { formatDiceRoll, hydrateGameState } from '@/utils';
+import type { Player, Room } from '@/types';
+import { hydrateGameState } from '@/utils';
 
 type GameBoardProps = {
   room: Room;
@@ -15,28 +15,55 @@ type BoardPlacement = {
   column: number;
 };
 
-const BOARD_COLUMNS = 14;
-const BOARD_ROWS = 8;
+const BOARD_COLUMNS = 11;
+const BOARD_ROWS = 6;
 const STEP_DURATION_MS = 320;
 
+const BOARD_PLACEMENTS: Record<number, BoardPlacement> = {
+  1: { row: 6, column: 1 },
+  2: { row: 5, column: 1 },
+  3: { row: 4, column: 1 },
+  4: { row: 3, column: 1 },
+  5: { row: 2, column: 1 },
+  6: { row: 1, column: 1 },
+  7: { row: 1, column: 2 },
+  8: { row: 1, column: 3 },
+  9: { row: 2, column: 3 },
+  10: { row: 3, column: 3 },
+  11: { row: 3, column: 4 },
+  12: { row: 3, column: 5 },
+  13: { row: 2, column: 5 },
+  14: { row: 1, column: 5 },
+  15: { row: 1, column: 6 },
+  16: { row: 1, column: 7 },
+  17: { row: 2, column: 7 },
+  18: { row: 3, column: 7 },
+  19: { row: 4, column: 7 },
+  20: { row: 4, column: 8 },
+  21: { row: 4, column: 9 },
+  22: { row: 3, column: 9 },
+  23: { row: 2, column: 9 },
+  24: { row: 1, column: 9 },
+  25: { row: 1, column: 10 },
+  26: { row: 1, column: 11 },
+  27: { row: 2, column: 11 },
+  28: { row: 3, column: 11 },
+  29: { row: 4, column: 11 },
+  30: { row: 5, column: 11 },
+  31: { row: 6, column: 11 },
+  32: { row: 6, column: 10 },
+  33: { row: 6, column: 9 },
+  34: { row: 6, column: 8 },
+  35: { row: 6, column: 7 },
+  36: { row: 6, column: 6 },
+  37: { row: 6, column: 5 },
+  38: { row: 6, column: 4 },
+  39: { row: 6, column: 3 },
+  40: { row: 6, column: 2 },
+};
+
 function getBoardPlacement(index: number): BoardPlacement {
-  if (index === 1) {
-    return { row: 8, column: 1 };
-  }
-
-  if (index <= 7) {
-    return { row: 9 - index, column: 1 };
-  }
-
-  if (index <= 21) {
-    return { row: 1, column: index - 7 };
-  }
-
-  if (index <= 27) {
-    return { row: index - 20, column: 14 };
-  }
-
-  return { row: 8, column: 42 - index };
+  return BOARD_PLACEMENTS[index] ?? BOARD_PLACEMENTS[1];
 }
 
 function getBoardPath(from: number, to: number) {
@@ -59,12 +86,8 @@ function getPlayerColor(player: Player) {
   return PROFILE_COLORS.find((color) => color.key === player.colorKey)?.value ?? '#1f2933';
 }
 
-function getBoardSpaceClassName(space: BoardSpace, game: GameState) {
-  const isCurrentTurnSpace = game.turnPlayerId
-    ? game.positions[game.turnPlayerId] === space.index
-    : false;
-
-  return isCurrentTurnSpace ? 'game-board__space game-board__space--current' : 'game-board__space';
+function getBoardSpaceLabel(space: (typeof BOARD_SPACES)[number]) {
+  return space.streetName ?? space.name;
 }
 
 export function GameBoard({ players, room }: GameBoardProps) {
@@ -99,8 +122,6 @@ export function GameBoard({ players, room }: GameBoardProps) {
   const animatedPositionsRef = useRef<Record<string, number>>(animatedPositions);
   const previousPositionsRef = useRef<Record<string, number>>({});
   const timersRef = useRef<number[]>([]);
-  const turnPlayer = players.find((player) => player.id === game.turnPlayerId);
-  const lastRollPlayer = players.find((player) => player.id === game.lastRoll?.playerId);
 
   useEffect(() => {
     animatedPositionsRef.current = animatedPositions;
@@ -131,7 +152,9 @@ export function GameBoard({ players, room }: GameBoardProps) {
 
           if (stepIndex === path.length - 1) {
             previousPositionsRef.current[playerId] = targetPosition;
-            setWalkingPlayerIds((current) => current.filter((currentPlayerId) => currentPlayerId !== playerId));
+            setWalkingPlayerIds((current) =>
+              current.filter((currentPlayerId) => currentPlayerId !== playerId),
+            );
           }
         }, STEP_DURATION_MS * (stepIndex + 1));
 
@@ -169,7 +192,7 @@ export function GameBoard({ players, room }: GameBoardProps) {
           return (
             <Tooltip key={space.index} title={space.name}>
               <div
-                className={getBoardSpaceClassName(space, game)}
+                className="game-board__space"
                 style={{
                   gridColumn: placement.column,
                   gridRow: placement.row,
@@ -179,41 +202,14 @@ export function GameBoard({ players, room }: GameBoardProps) {
                   className="game-board__space-strip"
                   style={{ backgroundColor: space.color }}
                 />
-                <span className="game-board__space-index">{space.index}</span>
+                <span className="game-board__space-stage" aria-hidden="true" />
                 <Typography.Text strong className="game-board__space-name">
-                  {space.name}
+                  {getBoardSpaceLabel(space)}
                 </Typography.Text>
               </div>
             </Tooltip>
           );
         })}
-
-        <div className="game-board__center">
-          <Space orientation="vertical" size={10} style={{ width: '100%' }}>
-            <Flex justify="space-between" align="center" gap={12} wrap>
-              <Space orientation="vertical" size={0}>
-                <Typography.Text type="secondary">Sala</Typography.Text>
-                <Typography.Title level={3} style={{ margin: 0 }}>
-                  {room.name}
-                </Typography.Title>
-              </Space>
-              <Tag color={game.status === 'playing' ? 'green' : 'default'}>{game.status}</Tag>
-            </Flex>
-
-            <Flex gap={8} wrap>
-              <Tag color="orange">Rodada {game.round}</Tag>
-              <Tag color="blue">Vez: {turnPlayer?.name ?? 'Aguardando'}</Tag>
-            </Flex>
-
-            <Typography.Text type="secondary">
-              {game.lastRoll && lastRollPlayer ? (
-                `Ultimo: ${lastRollPlayer.name} (${formatDiceRoll(game.lastRoll)})`
-              ) : (
-                <Tag color="default">Não iniciado</Tag>
-              )}
-            </Typography.Text>
-          </Space>
-        </div>
 
         {activePlayers.map((player) => {
           const position = animatedPositions[player.id] ?? game.positions[player.id] ?? 1;
@@ -242,7 +238,7 @@ export function GameBoard({ players, room }: GameBoardProps) {
                   borderColor: color,
                 }}
               >
-                <Avatar src={photo?.path} size={30} style={{ backgroundColor: color }}>
+                <Avatar src={photo?.path} size={36} style={{ backgroundColor: color }}>
                   {player.name.charAt(0)}
                 </Avatar>
               </div>

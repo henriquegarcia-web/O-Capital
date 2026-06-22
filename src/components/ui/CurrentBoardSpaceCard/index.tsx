@@ -1,10 +1,5 @@
-import {
-  BankOutlined,
-  HomeOutlined,
-  ShopOutlined,
-  ShoppingOutlined,
-} from '@ant-design/icons';
-import { Card, Descriptions, Flex, Space, Tag, Tooltip, Typography } from 'antd';
+import { BankOutlined, HomeOutlined, ShopOutlined, ShoppingOutlined } from '@ant-design/icons';
+import { Card, Descriptions, Flex, Space, Tooltip, Typography } from 'antd';
 
 import { BOARD_SPACES_BY_INDEX } from '@/constants';
 import type { GameState, Player } from '@/types';
@@ -49,18 +44,19 @@ export function CurrentBoardSpaceCard({
               style={{ backgroundColor: boardSpace.color }}
               aria-label="Cor da casa"
             />
-            <Typography.Title level={5} style={{ margin: 0 }}>
+            <Typography.Title level={5} style={{ fontSize: 14, margin: 0 }}>
               {boardSpace.name}
             </Typography.Title>
           </Flex>
-          <Tag color={isStreet ? 'blue' : 'purple'}>{isStreet ? 'Título' : 'Ação'}</Tag>
         </Flex>
 
         <Descriptions bordered column={1} size="small">
           <Descriptions.Item label="Status">{status}</Descriptions.Item>
           {isStreet ? (
             <Descriptions.Item label="Terreno">
-              {boardSpace.landValue ? `R$ ${boardSpace.landValue.toLocaleString('pt-BR')}` : 'Valor pendente'}
+              {boardSpace.landValue
+                ? `R$ ${boardSpace.landValue.toLocaleString('pt-BR')}`
+                : 'Valor pendente'}
             </Descriptions.Item>
           ) : null}
         </Descriptions>
