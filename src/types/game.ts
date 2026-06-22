@@ -54,14 +54,162 @@ export type DiceRoll = {
   createdAt: number;
 };
 
+export type BuiltProperty = {
+  id: string;
+  blueprintKey: string;
+  optionName?: string;
+  category: PropertyCategory;
+  constructionCost: number;
+  acquiredAtRound: number;
+  acquiredAt: number;
+};
+
+export type PlayerDebtStatus = 'active' | 'paid' | 'forgiven';
+export type PlayerDebtKind = 'rent' | 'bank' | 'tax' | 'maintenance';
+
+export type PlayerDebt = {
+  id: string;
+  kind: PlayerDebtKind;
+  creditorId: string | null;
+  debtorId: string;
+  amount: number;
+  originalAmount: number;
+  interestRate?: number;
+  createdAtRound?: number;
+  sourceId?: string;
+  boardIndex?: number;
+  description: string;
+  status: PlayerDebtStatus;
+  createdAt: number;
+  updatedAt: number;
+};
+
+export type PlayerTransactionKind =
+  | 'initial-balance'
+  | 'bank-credit'
+  | 'bank-debit'
+  | 'bank-loan'
+  | 'debt-payment'
+  | 'debt-received'
+  | 'debt-forgiven'
+  | 'tax-payment'
+  | 'round-income'
+  | 'maintenance-payment'
+  | 'title-bank-sale'
+  | 'title-player-sale'
+  | 'title-player-purchase'
+  | 'title-purchase'
+  | 'property-build'
+  | 'rent-paid'
+  | 'rent-received'
+  | 'debt-created';
+
+export type PlayerTransaction = {
+  id: string;
+  kind: PlayerTransactionKind;
+  amount: number;
+  round: number;
+  description: string;
+  createdAt: number;
+  relatedPlayerId?: string;
+  boardIndex?: number;
+};
+
+export type PlayerFinance = {
+  playerId: string;
+  balance: number;
+  debts: Record<string, PlayerDebt>;
+  receivables: Record<string, PlayerDebt>;
+  transactions: Record<string, PlayerTransaction>;
+  updatedAt: number;
+};
+
 export type TitleOwnership = {
   boardIndex: number;
   ownerId: string | null;
   acquiredAtRound?: number;
-  properties?: Array<{
-    blueprintKey: string;
-    acquiredAtRound: number;
-  }>;
+  properties?: BuiltProperty[];
+  lastPropertyPurchaseRound?: number;
+};
+
+export type TaxPendingStatus = 'pending' | 'paid';
+
+export type TaxPending = {
+  id: string;
+  playerId: string;
+  boardIndex: number;
+  titleName: string;
+  amount: number;
+  discountedAmount: number;
+  round: number;
+  status: TaxPendingStatus;
+  createdAt: number;
+  paidAt?: number;
+};
+
+export type RoundPendingStatus = 'pending' | 'confirmed';
+export type RoundPendingKind = 'dividends' | 'maintenance' | 'taxes';
+
+export type RoundPending = {
+  id: string;
+  playerId: string;
+  kind: RoundPendingKind;
+  amount: number;
+  round: number;
+  titleRefs?: number[];
+  status: RoundPendingStatus;
+  createdAt: number;
+  confirmedAt?: number;
+};
+
+export type BankLoanStatus = 'active' | 'paid';
+
+export type BankLoan = {
+  id: string;
+  playerId: string;
+  debtId: string;
+  principal: number;
+  interestRate: number;
+  status: BankLoanStatus;
+  createdAtRound: number;
+  createdAt: number;
+  paidAt?: number;
+};
+
+export type TitleSaleOfferStatus = 'pending' | 'accepted' | 'cancelled';
+
+export type TitleSaleOffer = {
+  id: string;
+  boardIndex: number;
+  sellerId: string;
+  buyerId: string;
+  amount: number;
+  status: TitleSaleOfferStatus;
+  createdAt: number;
+  acceptedAt?: number;
+  cancelledAt?: number;
+};
+
+export type TitleAuctionStatus = 'open' | 'closed' | 'cancelled';
+
+export type TitleAuctionBid = {
+  id: string;
+  bidderId: string;
+  amount: number;
+  createdAt: number;
+};
+
+export type TitleAuction = {
+  id: string;
+  boardIndex: number;
+  sellerId: string;
+  initialBid: number;
+  highestBidId?: string;
+  status: TitleAuctionStatus;
+  bids: Record<string, TitleAuctionBid>;
+  createdAt: number;
+  closedAt?: number;
+  cancelledAt?: number;
 };
 
 export type GameStatus = 'waiting' | 'playing' | 'paused' | 'finished';
@@ -77,6 +225,12 @@ export type GameState = {
   lastRoll: DiceRoll | null;
   playerLastRolls: Record<string, DiceRoll>;
   titles: Record<string, TitleOwnership>;
+  playerFinances: Record<string, PlayerFinance>;
+  bankLoans: Record<string, BankLoan>;
+  taxPendings: Record<string, TaxPending>;
+  roundPendings: Record<string, RoundPending>;
+  titleSaleOffers: Record<string, TitleSaleOffer>;
+  titleAuctions: Record<string, TitleAuction>;
   startedAt?: number;
   pausedAt?: number;
   finishedAt?: number;

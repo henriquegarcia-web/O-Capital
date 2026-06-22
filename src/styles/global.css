@@ -231,9 +231,110 @@ body {
   border-radius: 6px;
 }
 
+.player-finance-card {
+  overflow: hidden;
+  color: #ffffff;
+  background:
+    radial-gradient(circle at top right, rgb(45 212 191 / 28%), transparent 34%),
+    linear-gradient(135deg, #10231f 0%, #173b31 48%, #0f172a 100%);
+  border: 0;
+  box-shadow: 0 18px 42px rgb(15 23 42 / 18%);
+}
+
+.player-finance-card .ant-card-body {
+  padding: 18px;
+}
+
+.player-finance-card__eyebrow,
+.player-finance-card__title,
+.player-finance-card__metric-label,
+.player-finance-card__metric-value {
+  color: #ffffff !important;
+}
+
+.player-finance-card__eyebrow {
+  font-size: 12px;
+  letter-spacing: 0;
+  opacity: 0.72;
+}
+
+.player-finance-card__title {
+  margin: 0 !important;
+}
+
+.player-finance-card__metric {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 116px;
+  padding: 12px;
+  background: rgb(255 255 255 / 10%);
+  border: 1px solid rgb(255 255 255 / 16%);
+  border-radius: 8px;
+}
+
+.player-finance-card__metric svg {
+  width: 20px;
+  height: 20px;
+  color: #7dd3fc;
+}
+
+.player-finance-card__metric-label {
+  font-size: 11px;
+  line-height: 1.25;
+  opacity: 0.76;
+}
+
+.player-finance-card__metric-value {
+  margin-top: auto;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
 .banker-control-button {
   flex: 1 1 148px;
   min-width: 0;
+}
+
+.bank-actions-card__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  color: #ffffff;
+  background: #1f7a5f;
+  border-radius: 8px;
+}
+
+.bank-actions-card__field {
+  flex: 1 1 180px;
+  min-width: 0;
+  margin-bottom: 12px;
+}
+
+.bank-actions-card__field--player,
+.bank-actions-card__field--amount,
+.bank-actions-card__field--action {
+  flex-grow: 0;
+}
+
+.bank-actions-card__field--player {
+  flex-basis: 220px;
+}
+
+.bank-actions-card__field--amount {
+  flex-basis: 156px;
+}
+
+.bank-actions-card__field--action {
+  flex-basis: 220px;
+}
+
+.bank-actions-card__field--reason {
+  flex-basis: 260px;
 }
 
 .banker-players-table {
@@ -281,9 +382,7 @@ body {
   gap: 8px;
   width: max-content;
   padding: 6px;
-  background:
-    linear-gradient(135deg, rgb(255 255 255 / 88%), rgb(248 250 252 / 94%)),
-    #e5e7eb;
+  background: linear-gradient(135deg, rgb(255 255 255 / 88%), rgb(248 250 252 / 94%)), #e5e7eb;
   border: 1px solid #d9dee7;
   border-radius: 8px;
   box-shadow: 0 18px 48px rgb(15 23 42 / 12%);
@@ -446,9 +545,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background:
-    radial-gradient(circle at 30% 22%, rgb(255 255 255 / 92%), transparent 28%),
-    #ffffff;
+  background: radial-gradient(circle at 30% 22%, rgb(255 255 255 / 92%), transparent 28%), #ffffff;
   border: 2px solid #dbe1ea;
   border-radius: 16px;
   box-shadow:

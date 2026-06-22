@@ -37,6 +37,8 @@ import {
 import type { GameState, Player, Room } from '@/types';
 import { hydrateGameState } from '@/utils';
 
+import { BankActionsCard } from '../BankActionsCard';
+
 type BankerMatchControlCardProps = {
   room: Room;
   players: Player[];
@@ -196,6 +198,8 @@ export function BankerMatchControlCard({ players, room }: BankerMatchControlCard
 
   return (
     <Space orientation="vertical" size={16} style={{ width: '100%' }}>
+      <BankActionsCard room={room} players={players} />
+
       <Card>
         <Space orientation="vertical" size={14} style={{ width: '100%' }}>
           <Flex justify="space-between" align="center" gap={12} wrap>

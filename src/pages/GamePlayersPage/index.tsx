@@ -4,9 +4,12 @@ import { Card, Result, Skeleton, Space, Typography } from 'antd';
 import { APP_HISTORY_MENU, APP_MENU_ITEMS, type AppMenuKey } from '@/constants';
 import {
   AppBottomNavigation,
+  BankMenuPanel,
   BankerMatchControlCard,
   CurrentBoardSpaceCard,
   MatchControlCard,
+  PlayerFinanceCard,
+  TitlesMenuPanel,
 } from '@/components/ui';
 import { useCurrentRoomPlayer, useRoom } from '@/hooks';
 import { hydrateGameState } from '@/utils';
@@ -71,11 +74,26 @@ export function GamePlayersPage() {
   const pageContent =
     menuKey === 'partida' ? (
       <Space orientation="vertical" size={16} style={{ width: '100%' }}>
+        <PlayerFinanceCard game={hydratedGame} currentPlayer={currentPlayer} />
         <MatchControlCard room={room} players={players} currentPlayer={currentPlayer} />
-        <CurrentBoardSpaceCard game={hydratedGame} players={players} currentPlayer={currentPlayer} />
+        <CurrentBoardSpaceCard
+          roomId={roomId}
+          game={hydratedGame}
+          players={players}
+          currentPlayer={currentPlayer}
+        />
       </Space>
     ) : menuKey === 'banqueiro' ? (
       <BankerMatchControlCard room={room} players={players} />
+    ) : menuKey === 'banco' ? (
+      <BankMenuPanel room={room} game={hydratedGame} currentPlayer={currentPlayer} />
+    ) : menuKey === 'titulos' ? (
+      <TitlesMenuPanel
+        room={room}
+        game={hydratedGame}
+        players={players}
+        currentPlayer={currentPlayer}
+      />
     ) : menuKey === 'historico' ? (
       <AppMenuPlaceholder title="Historico" />
     ) : (
