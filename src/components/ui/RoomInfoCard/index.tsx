@@ -1,6 +1,7 @@
-import { Card, Descriptions, Space, Tag, Typography } from 'antd';
+import { BankOutlined, CalendarOutlined, TeamOutlined } from '@ant-design/icons';
+import { Card, Col, Row, Space, Statistic, Typography } from 'antd';
 
-import { GAME_LIMITS, ROOM_STATUS_LABELS } from '@/constants';
+import { GAME_LIMITS } from '@/constants';
 import type { Room } from '@/types';
 
 type RoomInfoCardProps = {
@@ -10,21 +11,34 @@ type RoomInfoCardProps = {
 
 export function RoomInfoCard({ playerCount, room }: RoomInfoCardProps) {
   return (
-    <Card>
+    <Card className="bank-app-card bank-app-card--dark room-info-card">
       <Space orientation="vertical" size={12} style={{ width: '100%' }}>
-        <Typography.Title level={3} style={{ margin: 0 }}>
-          {room.name}
-        </Typography.Title>
-        <Descriptions bordered column={{ xs: 1, sm: 2 }}>
-          <Descriptions.Item label="Status">
-            <Tag color={room.status === 'waiting' ? 'green' : 'blue'}>
-              {ROOM_STATUS_LABELS[room.status]}
-            </Tag>
-          </Descriptions.Item>
-          <Descriptions.Item label="Jogadores">
-            {playerCount}/{GAME_LIMITS.maxPlayers}
-          </Descriptions.Item>
-        </Descriptions>
+        <Space size={12} align="start">
+          <span className="bank-app-avatar">
+            <BankOutlined />
+          </span>
+          <Space orientation="vertical" size={4}>
+            <Typography.Title level={3} style={{ margin: 0 }}>
+              {room.name}
+            </Typography.Title>
+          </Space>
+        </Space>
+        <Row gutter={[10, 10]}>
+          <Col span={12}>
+            <Statistic
+              title="Jogadores"
+              value={`${playerCount}/${GAME_LIMITS.maxPlayers}`}
+              prefix={<TeamOutlined />}
+            />
+          </Col>
+          <Col span={12}>
+            <Statistic
+              title="Status"
+              value={room.status === 'waiting' ? 'Aberta' : 'Ativa'}
+              prefix={<CalendarOutlined />}
+            />
+          </Col>
+        </Row>
       </Space>
     </Card>
   );

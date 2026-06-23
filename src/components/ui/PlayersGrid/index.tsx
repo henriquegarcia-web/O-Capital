@@ -1,3 +1,4 @@
+import { ArrowRightOutlined } from '@ant-design/icons';
 import { Avatar, Button, Card, Empty, Flex, Space, Tag, Typography } from 'antd';
 
 import { PLAYER_ROLE_LABELS, PROFILE_COLORS, PROFILE_PHOTOS } from '@/constants';
@@ -21,8 +22,8 @@ export function PlayersGrid({ players, showEnterAction = false, onEnter }: Playe
         const color = PROFILE_COLORS.find((item) => item.key === player.colorKey);
 
         return (
-          <Card key={player.id} size="small">
-            <Flex justify="space-between" align="center" gap={16} wrap>
+          <Card key={player.id} size="small" className="bank-app-list-card">
+            <Flex className="bank-app-row" justify="space-between" align="center" gap={16}>
               <Space>
                 <Avatar
                   src={photo?.path}
@@ -36,14 +37,27 @@ export function PlayersGrid({ players, showEnterAction = false, onEnter }: Playe
                 <Space orientation="vertical" size={2}>
                   <Typography.Text strong>{player.name}</Typography.Text>
                   <Space size={6}>
-                    <Tag color={player.role === 'banqueiro' ? 'gold' : 'blue'}>
+                    <Tag
+                      color={
+                        player.status === 'eliminated'
+                          ? 'red'
+                          : player.role === 'banqueiro'
+                            ? 'gold'
+                            : 'green'
+                      }
+                    >
                       {PLAYER_ROLE_LABELS[player.role]}
                     </Tag>
+                    {player.status === 'eliminated' ? <Tag color="red">Eliminado</Tag> : null}
                   </Space>
                 </Space>
               </Space>
               {showEnterAction ? (
-                <Button onClick={() => onEnter?.(player.id)}>Entrar</Button>
+                <Button
+                  shape="circle"
+                  icon={<ArrowRightOutlined />}
+                  onClick={() => onEnter?.(player.id)}
+                />
               ) : null}
             </Flex>
           </Card>

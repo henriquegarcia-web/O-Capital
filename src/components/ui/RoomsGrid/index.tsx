@@ -1,4 +1,10 @@
-import { Button, Card, Empty, Flex, Grid, Space, Tag, Typography } from 'antd';
+import {
+  ArrowRightOutlined,
+  BankOutlined,
+  ClockCircleOutlined,
+  TeamOutlined,
+} from '@ant-design/icons';
+import { Button, Card, Empty, Flex, Grid, Space, Typography } from 'antd';
 
 import type { RoomSummary } from '@/types';
 
@@ -20,19 +26,40 @@ export function RoomsGrid({ rooms, loading, onEnter }: RoomsGridProps) {
   return (
     <Flex vertical gap={12}>
       {rooms.map((room) => (
-        <Card key={room.id} loading={loading} size={screens.xs ? 'small' : 'medium'}>
-          <Flex justify="space-between" gap={12} align="center" wrap>
-            <Space orientation="vertical" size={4}>
-              <Typography.Title level={5} style={{ margin: 0 }}>
-                {room.name}
-              </Typography.Title>
-              <Tag color="green">
-                {room.playerCount} {room.playerCount === 1 ? 'jogador' : 'jogadores'}
-              </Tag>
-            </Space>
-            <Button onClick={() => onEnter(room.id)}>
-              Entrar
-            </Button>
+        <Card
+          key={room.id}
+          loading={loading}
+          size={screens.xs ? 'small' : 'medium'}
+          className="bank-app-list-card"
+        >
+          <Flex className="bank-app-row" justify="space-between" gap={12} align="center">
+            <Flex gap={12} align="center" style={{ minWidth: 0 }}>
+              <span className="bank-app-avatar">
+                <BankOutlined />
+              </span>
+              <Space orientation="vertical" size={4} style={{ minWidth: 0 }}>
+                <Flex align="center" gap={8} wrap>
+                  <Typography.Title level={5} style={{ margin: 0 }}>
+                    {room.name}
+                  </Typography.Title>
+                </Flex>
+                <Flex gap={12} wrap className="bank-app-muted">
+                  <Space size={4}>
+                    <TeamOutlined />
+                    <Typography.Text type="secondary">
+                      {room.playerCount} {room.playerCount === 1 ? 'jogador' : 'jogadores'}
+                    </Typography.Text>
+                  </Space>
+                  <Space size={4}>
+                    <ClockCircleOutlined />
+                    <Typography.Text type="secondary">
+                      {room.status === 'waiting' ? 'Aguardando inicio' : 'Partida ativa'}
+                    </Typography.Text>
+                  </Space>
+                </Flex>
+              </Space>
+            </Flex>
+            <Button shape="circle" icon={<ArrowRightOutlined />} onClick={() => onEnter(room.id)} />
           </Flex>
         </Card>
       ))}

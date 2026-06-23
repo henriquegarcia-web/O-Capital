@@ -42,14 +42,9 @@ export function PlayerFinanceCard({ currentPlayer, game }: PlayerFinanceCardProp
   return (
     <Card className="player-finance-card">
       <Space orientation="vertical" size={16} style={{ width: '100%' }}>
-        <Space orientation="vertical" size={2}>
-          <Typography.Text className="player-finance-card__eyebrow">
-            Conta da partida
-          </Typography.Text>
-          <Typography.Title level={4} className="player-finance-card__title">
-            {currentPlayer.name}
-          </Typography.Title>
-        </Space>
+        <Typography.Title level={4} className="player-finance-card__title">
+          {currentPlayer.name}
+        </Typography.Title>
 
         <Row gutter={[10, 10]}>
           {metrics.map((metric) => {

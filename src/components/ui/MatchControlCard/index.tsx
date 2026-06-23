@@ -1,12 +1,12 @@
 import { PlayCircleOutlined } from '@ant-design/icons';
-import { App, Button, Card, Descriptions, Space, Tag, Typography } from 'antd';
+import { App, Button, Card, Descriptions, Flex, Space, Tag, Typography } from 'antd';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { rollPlayerDice } from '@/api';
 import type { GameState, Player, Room } from '@/types';
 import { formatDiceRoll, hydrateGameState } from '@/utils';
 
-import { DiceRollOverlay, type DiceRollOverlayPhase } from '../DiceRollOverlay';
+import { DiceRollOverlay } from '../DiceRollOverlay';
 
 type MatchControlCardProps = {
   room: Room;
@@ -20,7 +20,7 @@ type DiceResult = {
 };
 
 const GAME_STATUS_LABELS: Record<GameState['status'], string> = {
-  waiting: 'Não iniciado',
+  waiting: 'Nao iniciado',
   playing: 'Em andamento',
   paused: 'Pausado',
   finished: 'Finalizado',
@@ -30,10 +30,11 @@ function rollDie() {
   return Math.floor(Math.random() * 6) + 1;
 }
 
+const DICE_OVERLAY_CLOSE_DELAY_MS = 3800;
+
 export function MatchControlCard({ currentPlayer, players, room }: MatchControlCardProps) {
   const { message } = App.useApp();
   const [rolling, setRolling] = useState(false);
-  const [overlayPhase, setOverlayPhase] = useState<DiceRollOverlayPhase>('rolling');
   const [diceResult, setDiceResult] = useState<DiceResult | null>(null);
   const timeoutsRef = useRef<number[]>([]);
   const game = useMemo<GameState>(() => hydrateGameState(room.game, players), [players, room.game]);
@@ -62,46 +63,42 @@ export function MatchControlCard({ currentPlayer, players, room }: MatchControlC
     };
 
     setDiceResult(nextDiceResult);
-    setOverlayPhase('rolling');
     setRolling(true);
 
     timeoutsRef.current.push(
       window.setTimeout(() => {
-        setOverlayPhase('result');
-      }, 2000),
-    );
+        setRolling(false);
+        setDiceResult(null);
 
-    timeoutsRef.current.push(
-      window.setTimeout(() => {
-        setOverlayPhase('exiting');
-      }, 4000),
-    );
-
-    timeoutsRef.current.push(
-      window.setTimeout(async () => {
-        try {
-          await rollPlayerDice(room.id, currentPlayer.id, nextDiceResult);
-          message.success('Jogada contabilizada.');
-        } catch (error) {
-          message.error(
-            error instanceof Error ? error.message : 'Nao foi possivel girar os dados.',
-          );
-        } finally {
-          setRolling(false);
-          setDiceResult(null);
-          clearRollTimers();
-        }
-      }, 4400),
+        void rollPlayerDice(room.id, currentPlayer.id, nextDiceResult)
+          .then(() => {
+            message.success('Jogada contabilizada.');
+          })
+          .catch((error) => {
+            message.error(error instanceof Error ? error.message : 'Nao foi possivel girar os dados.');
+          })
+          .finally(() => {
+            clearRollTimers();
+          });
+      }, DICE_OVERLAY_CLOSE_DELAY_MS),
     );
   }
 
   return (
     <>
-      <Card>
+      <Card className="bank-app-card">
         <Space orientation="vertical" size={14} style={{ width: '100%' }}>
-          <Typography.Title level={4} style={{ margin: 0 }}>
-            Controle de Partida
-          </Typography.Title>
+          <Flex
+            align="center"
+            justify="space-between"
+            gap={12}
+            wrap
+            className="bank-app-card-header"
+          >
+            <Typography.Title level={4} className="bank-app-section-title">
+              Controle de Partida
+            </Typography.Title>
+          </Flex>
 
           <Descriptions bordered column={1} size="small">
             <Descriptions.Item label="Status">
@@ -117,14 +114,14 @@ export function MatchControlCard({ currentPlayer, players, room }: MatchControlC
               {game.lastRoll && lastRollPlayer ? (
                 `${lastRollPlayer.name} (${game.lastRoll.total})`
               ) : (
-                <Tag color="default">Não iniciado</Tag>
+                <Tag color="default">Nao iniciado</Tag>
               )}
             </Descriptions.Item>
             <Descriptions.Item label="Sua ultima jogada">
               {currentPlayerLastRoll ? (
                 `(${formatDiceRoll(currentPlayerLastRoll)})`
               ) : (
-                <Tag color="default">Não iniciado</Tag>
+                <Tag color="default">Nao iniciado</Tag>
               )}
             </Descriptions.Item>
           </Descriptions>
@@ -142,7 +139,7 @@ export function MatchControlCard({ currentPlayer, players, room }: MatchControlC
           </Button>
         </Space>
       </Card>
-      <DiceRollOverlay open={rolling} phase={overlayPhase} result={diceResult} />
+      <DiceRollOverlay open={rolling} result={diceResult} />
     </>
   );
 }

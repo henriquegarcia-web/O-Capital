@@ -1,4 +1,4 @@
-import { App, Button, Flex, Modal, Result, Skeleton } from 'antd';
+import { App, Button, Modal, Result, Skeleton, Space } from 'antd';
 import { useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 
@@ -9,7 +9,7 @@ import type { CreatePlayerInput } from '@/schemas';
 import { getCurrentRoomPlayerId, setCurrentRoomPlayerId } from '@/utils';
 
 export function RoomPage() {
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
   const navigate = useNavigate();
   const { roomId } = useParams();
   const { room, players, loading } = useRoom(roomId);
@@ -48,18 +48,26 @@ export function RoomPage() {
   }
 
   function handleEnterAsPlayer(playerId: string) {
-    setCurrentRoomPlayerId(activeRoomId, playerId);
-    navigate(`/rooms/${activeRoomId}/app/partida`);
+    const player = players.find((item) => item.id === playerId);
+
+    modal.confirm({
+      title: 'Entrar como jogador?',
+      content: `Entrar como ${player?.name ?? 'jogador'}?`,
+      okText: 'Entrar',
+      cancelText: 'Cancelar',
+      onOk() {
+        setCurrentRoomPlayerId(activeRoomId, playerId);
+        navigate(`/rooms/${activeRoomId}/app/partida`);
+      },
+    });
   }
 
   return (
-    <Flex vertical align="flex=end" gap={12}>
+    <Space orientation="vertical" size={16} style={{ width: '100%' }} className="room-details-page">
       <RoomInfoCard room={room} playerCount={players.length} />
-      <Flex justify="flex-end">
-        <Button type="primary" onClick={() => setIsJoinModalOpen(true)}>
-          Novo jogador
-        </Button>
-      </Flex>
+      <Button type="primary" size="large" block onClick={() => setIsJoinModalOpen(true)}>
+        Novo jogador
+      </Button>
       <PlayersGrid players={players} showEnterAction onEnter={handleEnterAsPlayer} />
       <Modal
         open={isJoinModalOpen}
@@ -74,6 +82,6 @@ export function RoomPage() {
           onJoin={handleJoin}
         />
       </Modal>
-    </Flex>
+    </Space>
   );
 }

@@ -27,12 +27,12 @@ export function HomePage() {
   }
 
   return (
-    <Space orientation="vertical" size={12} style={{ width: '100%' }}>
+    <Space orientation="vertical" size={16} style={{ width: '100%' }}>
       <Row gutter={[12, 12]}>
-        <Col xs={24} lg={8}>
+        <Col xs={24} lg={9}>
           <RoomCreateCard loading={creating} onCreate={handleCreateRoom} />
         </Col>
-        <Col xs={24} lg={16}>
+        <Col xs={24} lg={15}>
           <RoomsGrid
             rooms={rooms}
             loading={loading}

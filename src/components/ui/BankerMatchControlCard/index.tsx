@@ -14,7 +14,6 @@ import {
   Flex,
   Form,
   Input,
-  Popconfirm,
   Space,
   Table,
   Tag,
@@ -53,7 +52,7 @@ type DeleteRoomFormValues = {
 };
 
 const GAME_STATUS_LABELS: Record<GameState['status'], string> = {
-  waiting: 'Não iniciado',
+  waiting: 'Nao iniciado',
   playing: 'Em andamento',
   paused: 'Pausado',
   finished: 'Finalizado',
@@ -94,6 +93,18 @@ export function BankerMatchControlCard({ players, room }: BankerMatchControlCard
     }
   }
 
+  function confirmAction(title: string, content: string, action: () => Promise<unknown>, successMessage: string) {
+    modal.confirm({
+      title,
+      content,
+      okText: 'Confirmar',
+      cancelText: 'Cancelar',
+      async onOk() {
+        await runAction(action, successMessage);
+      },
+    });
+  }
+
   function movePlayer(playerId: string, direction: -1 | 1) {
     const currentIndex = game.playerOrder.indexOf(playerId);
     const nextIndex = currentIndex + direction;
@@ -106,7 +117,12 @@ export function BankerMatchControlCard({ players, room }: BankerMatchControlCard
     const [player] = nextOrder.splice(currentIndex, 1);
     nextOrder.splice(nextIndex, 0, player);
 
-    void runAction(() => reorderPlayers(room.id, nextOrder), 'Ordem atualizada.');
+    confirmAction(
+      'Confirmar ordem',
+      'Atualizar a ordem dos jogadores?',
+      () => reorderPlayers(room.id, nextOrder),
+      'Ordem atualizada.',
+    );
   }
 
   function confirmDeleteRoom() {
@@ -146,6 +162,7 @@ export function BankerMatchControlCard({ players, room }: BankerMatchControlCard
       title: 'Jogador',
       dataIndex: 'name',
       key: 'name',
+      width: 180,
       render: (_, player) => (
         <Typography.Text strong className={getPlayerNameClassName(player, game.turnPlayerId)}>
           {player.name}
@@ -153,7 +170,7 @@ export function BankerMatchControlCard({ players, room }: BankerMatchControlCard
       ),
     },
     {
-      title: 'Ações',
+      title: 'Acoes',
       key: 'actions',
       width: 112,
       align: 'right',
@@ -173,24 +190,21 @@ export function BankerMatchControlCard({ players, room }: BankerMatchControlCard
             disabled={index === orderedPlayers.length - 1}
             onClick={() => movePlayer(player.id, 1)}
           />
-          <Popconfirm
-            title="Eliminar jogador?"
-            description="Os titulos desse jogador voltarao ao mercado."
-            okText="Eliminar"
-            cancelText="Cancelar"
+          <Button
+            danger
+            size="small"
+            icon={<DeleteOutlined />}
+            aria-label="Eliminar jogador"
             disabled={player.status === 'eliminated'}
-            onConfirm={() =>
-              runAction(() => eliminatePlayer(room.id, player.id), 'Jogador eliminado.')
+            onClick={() =>
+              confirmAction(
+                'Eliminar jogador?',
+                'Os titulos desse jogador voltarao ao mercado.',
+                () => eliminatePlayer(room.id, player.id),
+                'Jogador eliminado.',
+              )
             }
-          >
-            <Button
-              danger
-              size="small"
-              icon={<DeleteOutlined />}
-              aria-label="Eliminar jogador"
-              disabled={player.status === 'eliminated'}
-            />
-          </Popconfirm>
+          />
         </Space.Compact>
       ),
     },
@@ -200,9 +214,15 @@ export function BankerMatchControlCard({ players, room }: BankerMatchControlCard
     <Space orientation="vertical" size={16} style={{ width: '100%' }}>
       <BankActionsCard room={room} players={players} />
 
-      <Card>
+      <Card className="bank-app-card">
         <Space orientation="vertical" size={14} style={{ width: '100%' }}>
-          <Flex justify="space-between" align="center" gap={12} wrap>
+          <Flex
+            justify="space-between"
+            align="center"
+            gap={12}
+            wrap
+            className="bank-app-card-header"
+          >
             <Typography.Title level={4} style={{ margin: 0 }}>
               Controle de Partida
             </Typography.Title>
@@ -219,37 +239,54 @@ export function BankerMatchControlCard({ players, room }: BankerMatchControlCard
               icon={game.status === 'playing' ? <PauseCircleOutlined /> : <PlayCircleOutlined />}
               onClick={() =>
                 game.status === 'playing'
-                  ? runAction(() => pauseGame(room.id), 'Partida pausada.')
-                  : runAction(() => startGame(room.id), 'Partida iniciada.')
+                  ? confirmAction(
+                      'Pausar partida?',
+                      'A partida ficara pausada para todos os jogadores.',
+                      () => pauseGame(room.id),
+                      'Partida pausada.',
+                    )
+                  : confirmAction(
+                      'Iniciar partida?',
+                      'A rodada e a ordem de jogo serao iniciadas.',
+                      () => startGame(room.id),
+                      'Partida iniciada.',
+                    )
               }
             >
               {game.status === 'playing' ? 'Pausar' : 'Iniciar'}
             </Button>
-            <Popconfirm
-              title="Reiniciar partida?"
-              okText="Reiniciar"
-              cancelText="Cancelar"
-              onConfirm={() => runAction(() => resetGame(room.id), 'Partida reiniciada.')}
+            <Button
+              block
+              className="banker-control-button"
+              icon={<ReloadOutlined />}
+              disabled={game.status !== 'playing'}
+              onClick={() =>
+                confirmAction(
+                  'Reiniciar partida?',
+                  'Todo o estado da partida sera reiniciado.',
+                  () => resetGame(room.id),
+                  'Partida reiniciada.',
+                )
+              }
             >
-              <Button
-                block
-                className="banker-control-button"
-                icon={<ReloadOutlined />}
-                disabled={game.status !== 'playing'}
-              >
-                Reiniciar
-              </Button>
-            </Popconfirm>
-            <Popconfirm
-              title="Finalizar partida?"
-              okText="Finalizar"
-              cancelText="Cancelar"
-              onConfirm={() => runAction(() => finishGame(room.id), 'Partida finalizada.')}
+              Reiniciar
+            </Button>
+            <Button
+              danger
+              block
+              className="banker-control-button"
+              icon={<StopOutlined />}
+              onClick={() =>
+                confirmAction(
+                  'Finalizar partida?',
+                  'A partida sera marcada como finalizada.',
+                  () => finishGame(room.id),
+                  'Partida finalizada.',
+                )
+              }
             >
-              <Button danger block className="banker-control-button" icon={<StopOutlined />}>
-                Finalizar
-              </Button>
-            </Popconfirm>
+              Finalizar
+            </Button>
           </Flex>
 
           <Table
@@ -260,34 +297,44 @@ export function BankerMatchControlCard({ players, room }: BankerMatchControlCard
             pagination={false}
             columns={columns}
             dataSource={orderedPlayers}
+            scroll={{ x: 292 }}
           />
         </Space>
       </Card>
 
-      <Card>
+      <Card className="bank-app-card">
         <Space orientation="vertical" size={14} style={{ width: '100%' }}>
-          <Typography.Title level={4} style={{ margin: 0 }}>
-            Configuracoes
-          </Typography.Title>
+          <Flex align="center" justify="space-between" gap={12} wrap className="bank-app-card-header">
+            <Typography.Title level={4} style={{ margin: 0 }}>
+              Configuracoes
+            </Typography.Title>
+          </Flex>
 
           <Form
             form={roomNameForm}
             layout="vertical"
             initialValues={{ name: room.name }}
             onFinish={(values) =>
-              runAction(() => renameRoom(room.id, values.name), 'Nome da sala atualizado.')
+              confirmAction(
+                'Renomear sala?',
+                `Alterar o nome da sala para "${values.name}"?`,
+                () => renameRoom(room.id, values.name),
+                'Nome da sala atualizado.',
+              )
             }
           >
-            <Flex align="flex-end" gap={8}>
+            <Flex align="flex-end" gap={8} wrap>
               <Form.Item
                 label="Nome da sala"
                 name="name"
                 rules={[{ required: true, min: 3, message: 'Informe pelo menos 3 caracteres.' }]}
-                style={{ flex: 1, marginBottom: 0 }}
+                style={{ flex: '1 1 220px', marginBottom: 0 }}
               >
                 <Input />
               </Form.Item>
-              <Button htmlType="submit">Redefinir</Button>
+              <Button htmlType="submit" className="banker-config-submit">
+                Redefinir
+              </Button>
             </Flex>
           </Form>
 

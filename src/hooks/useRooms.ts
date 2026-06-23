@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import { subscribeToWaitingRooms } from '@/api';
+import { subscribeToActiveRooms } from '@/api';
 import type { RoomSummary } from '@/types';
 
 export function useRooms() {
@@ -8,7 +8,7 @@ export function useRooms() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = subscribeToWaitingRooms((nextRooms) => {
+    const unsubscribe = subscribeToActiveRooms((nextRooms) => {
       setRooms(nextRooms);
       setLoading(false);
     });

@@ -29,28 +29,42 @@ type BankActionFormValues = {
 };
 
 export function BankActionsCard({ players, room }: BankActionsCardProps) {
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
   const [form] = Form.useForm<BankActionFormValues>();
   const activePlayers = players.filter((player) => player.status !== 'eliminated');
 
   async function handleSubmit(values: BankActionFormValues) {
-    try {
-      await applyBankBalanceAction(room.id, values.playerId, {
-        action: values.action,
-        amount: values.amount,
-        reason: values.reason,
-      });
-      message.success('Acao do banco aplicada.');
-      form.resetFields();
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : 'Nao foi possivel aplicar a acao.');
-    }
+    const targetPlayer = players.find((player) => player.id === values.playerId);
+
+    modal.confirm({
+      title: 'Confirmar acao do banco',
+      content: `${values.action === 'add' ? 'Somar' : 'Subtrair'} ${values.amount} para ${
+        targetPlayer?.name ?? 'jogador'
+      }?`,
+      okText: 'Confirmar',
+      cancelText: 'Cancelar',
+      async onOk() {
+        try {
+          await applyBankBalanceAction(room.id, values.playerId, {
+            action: values.action,
+            amount: values.amount,
+            reason: values.reason,
+          });
+          message.success('Acao do banco aplicada.');
+          form.resetFields();
+        } catch (error) {
+          message.error(
+            error instanceof Error ? error.message : 'Nao foi possivel aplicar a acao.',
+          );
+        }
+      },
+    });
   }
 
   return (
-    <Card>
+    <Card className="bank-app-card">
       <Space orientation="vertical" size={14} style={{ width: '100%' }}>
-        <Flex align="center" gap={10}>
+        <Flex align="center" gap={10} wrap className="bank-app-card-header">
           <BankOutlined className="bank-actions-card__icon" />
           <Typography.Title level={4} style={{ margin: 0 }}>
             Acoes do Banco
@@ -63,21 +77,39 @@ export function BankActionsCard({ players, room }: BankActionsCardProps) {
           initialValues={{ action: 'add' }}
           onFinish={handleSubmit}
         >
-          <Flex gap={12} wrap align="flex-start">
-            <Form.Item
-              label="Jogador de destino"
-              name="playerId"
-              rules={[{ required: true, message: 'Selecione o jogador de destino.' }]}
-              className="bank-actions-card__field bank-actions-card__field--player"
-            >
-              <Select
-                placeholder="Selecione"
-                options={activePlayers.map((player) => ({
-                  value: player.id,
-                  label: player.name,
-                }))}
-              />
-            </Form.Item>
+          <Space orientation="vertical" size={12} style={{ width: '100%' }}>
+            <Flex gap={12} wrap align="flex-start">
+              <Form.Item
+                label="Destino"
+                name="playerId"
+                rules={[{ required: true, message: 'Selecione o jogador de destino.' }]}
+                className="bank-actions-card__field bank-actions-card__field--player"
+              >
+                <Select
+                  placeholder="Selecione"
+                  options={activePlayers.map((player) => ({
+                    value: player.id,
+                    label: player.name,
+                  }))}
+                />
+              </Form.Item>
+
+              <Form.Item
+                label="Valor"
+                name="amount"
+                rules={[{ required: true, message: 'Informe o valor.' }]}
+                className="bank-actions-card__field bank-actions-card__field--amount"
+              >
+                <InputNumber
+                  min={1}
+                  precision={0}
+                  controls={false}
+                  addonBefore="R$"
+                  placeholder="0"
+                  style={{ width: '100%' }}
+                />
+              </Form.Item>
+            </Flex>
 
             <Form.Item
               label="Motivo"
@@ -86,32 +118,16 @@ export function BankActionsCard({ players, room }: BankActionsCardProps) {
                 { required: true, message: 'Informe o motivo.' },
                 { min: 3, message: 'Informe pelo menos 3 caracteres.' },
               ]}
-              className="bank-actions-card__field bank-actions-card__field--reason"
+              className="bank-actions-card__field bank-actions-card__field--full"
             >
               <Input placeholder="Ex.: bonus, taxa, ajuste manual" />
-            </Form.Item>
-
-            <Form.Item
-              label="Valor"
-              name="amount"
-              rules={[{ required: true, message: 'Informe o valor.' }]}
-              className="bank-actions-card__field bank-actions-card__field--amount"
-            >
-              <InputNumber
-                min={1}
-                precision={0}
-                controls={false}
-                addonBefore="R$"
-                placeholder="0"
-                style={{ width: '100%' }}
-              />
             </Form.Item>
 
             <Form.Item
               label="Acao"
               name="action"
               rules={[{ required: true, message: 'Selecione a acao.' }]}
-              className="bank-actions-card__field bank-actions-card__field--action"
+              className="bank-actions-card__field bank-actions-card__field--full"
             >
               <Segmented
                 block
@@ -121,11 +137,11 @@ export function BankActionsCard({ players, room }: BankActionsCardProps) {
                 ]}
               />
             </Form.Item>
-          </Flex>
 
-          <Button type="primary" htmlType="submit" block>
-            Aplicar acao
-          </Button>
+            <Button type="primary" htmlType="submit" block>
+              Aplicar acao
+            </Button>
+          </Space>
         </Form>
       </Space>
     </Card>

@@ -1,11 +1,8 @@
 import {
-  equalTo,
   get,
   off,
   onValue,
-  orderByChild,
   push,
-  query,
   ref,
   remove,
   runTransaction,
@@ -284,9 +281,9 @@ function settleRentForPosition(game: GameState, playerId: string, boardIndex: nu
 }
 
 export async function createRoom(input: CreateRoomInput) {
-  const waitingRooms = await listWaitingRooms();
+  const activeRooms = await listActiveRooms();
 
-  if (hasSameName(input.name, waitingRooms)) {
+  if (hasSameName(input.name, activeRooms)) {
     throw new Error('Ja existe uma sala ativa com esse nome.');
   }
 
@@ -318,33 +315,34 @@ export async function getRoom(roomId: string) {
   return snapshot.val() as RoomRecord;
 }
 
-export async function listWaitingRooms() {
-  const snapshot = await get(query(roomsRef, orderByChild('status'), equalTo('waiting')));
+export async function listActiveRooms() {
+  const snapshot = await get(roomsRef);
 
   if (!snapshot.exists()) {
     return [];
   }
 
-  return Object.values(snapshot.val() as Record<string, RoomRecord>).map(toRoomSummary);
+  return Object.values(snapshot.val() as Record<string, RoomRecord>)
+    .filter((room) => room.status !== 'finished')
+    .map(toRoomSummary);
 }
 
-export function subscribeToWaitingRooms(onChange: (rooms: RoomSummary[]) => void) {
-  const waitingRoomsQuery = query(roomsRef, orderByChild('status'), equalTo('waiting'));
-
-  onValue(waitingRoomsQuery, (snapshot) => {
+export function subscribeToActiveRooms(onChange: (rooms: RoomSummary[]) => void) {
+  onValue(roomsRef, (snapshot) => {
     if (!snapshot.exists()) {
       onChange([]);
       return;
     }
 
     const rooms = Object.values(snapshot.val() as Record<string, RoomRecord>)
+      .filter((room) => room.status !== 'finished')
       .map(toRoomSummary)
       .sort((current, next) => next.createdAt - current.createdAt);
 
     onChange(rooms);
   });
 
-  return () => off(waitingRoomsQuery);
+  return () => off(roomsRef);
 }
 
 export function subscribeToRoom(
@@ -428,6 +426,17 @@ export async function renameRoom(roomId: string, name: string) {
 
   if (trimmedName.length < 3) {
     throw new Error('O nome da sala deve ter pelo menos 3 caracteres.');
+  }
+
+  const activeRooms = await listActiveRooms();
+  const duplicateRoom = activeRooms.find(
+    (room) =>
+      room.id !== roomId &&
+      normalizeComparableText(room.name) === normalizeComparableText(trimmedName),
+  );
+
+  if (duplicateRoom) {
+    throw new Error('Ja existe uma sala ativa com esse nome.');
   }
 
   return updateRoom(roomId, { name: trimmedName });
@@ -1217,6 +1226,10 @@ export async function buildTitleProperty(
 
     if (properties.length >= propertySlots) {
       throw new Error('Este titulo ja atingiu o limite de propriedades.');
+    }
+
+    if (title.acquiredAtRound === game.round) {
+      throw new Error('Construcao disponivel apenas a partir da proxima rodada.');
     }
 
     if (title.lastPropertyPurchaseRound === game.round) {
