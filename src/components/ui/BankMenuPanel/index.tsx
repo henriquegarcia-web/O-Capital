@@ -134,7 +134,10 @@ export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPa
     loanDebtTotal > 0 ? calculateProjectedBankScore(game, currentPlayer.id, loanDebtTotal) : score;
   const isProjectedBankruptcy = loanDebtTotal > 0 && projectedScore <= 0;
   const isProjectedPreBankruptcy = projectedScore >= 1 && projectedScore <= 10;
-  const isAtBank = isPlayerOnBankSpace(game, currentPlayer.id);
+  const isAtBank =
+    isPlayerOnBankSpace(game, currentPlayer.id) &&
+    game.status === 'playing' &&
+    game.turnPlayerId === currentPlayer.id;
   const pendingTaxTotal = calculatePendingTaxTotal(game, currentPlayer.id);
   const activeLoanCount = activeDebts.filter(
     (debt) => debt.kind === 'bank' || debt.kind === 'player-loan',
@@ -275,7 +278,7 @@ export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPa
                     <Alert
                       type="info"
                       showIcon
-                      message="Voce esta na casa Banco. O desconto vale individualmente para este imposto."
+                      title="Voce esta na casa Banco. O desconto vale individualmente para este imposto."
                     />
                   </>
                 ) : null}
@@ -715,14 +718,14 @@ export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPa
                   <Alert
                     type="warning"
                     showIcon
-                    message={`Este emprestimo levara o jogador a pre-falencia: score ${projectedScore}.`}
+                    title={`Este emprestimo levara o jogador a pre-falencia: score ${projectedScore}.`}
                   />
                 ) : null}
                 {isProjectedBankruptcy ? (
                   <Alert
                     type="error"
                     showIcon
-                    message="Emprestimo bloqueado: este valor levaria o jogador a falencia."
+                    title="Emprestimo bloqueado: este valor levaria o jogador a falencia."
                   />
                 ) : null}
                 <Form
@@ -782,14 +785,14 @@ export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPa
                   <Alert
                     type="warning"
                     showIcon
-                    message={`Este emprestimo levara o jogador a pre-falencia: score ${playerLoanProjectedScore}.`}
+                    title={`Este emprestimo levara o jogador a pre-falencia: score ${playerLoanProjectedScore}.`}
                   />
                 ) : null}
                 {isPlayerLoanBankruptcy ? (
                   <Alert
                     type="error"
                     showIcon
-                    message="Emprestimo bloqueado: este valor levaria o jogador a falencia."
+                    title="Emprestimo bloqueado: este valor levaria o jogador a falencia."
                   />
                 ) : null}
                 <Form

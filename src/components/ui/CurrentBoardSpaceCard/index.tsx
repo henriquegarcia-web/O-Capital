@@ -1,13 +1,16 @@
-﻿import { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ArrowUpOutlined,
+  BankOutlined,
   BuildOutlined,
+  CheckCircleOutlined,
   DeleteOutlined,
   HomeOutlined,
   ShopOutlined,
   ShoppingCartOutlined,
 } from '@ant-design/icons';
 import {
+  Alert,
   App,
   Button,
   Card,
@@ -21,14 +24,24 @@ import {
   Typography,
 } from 'antd';
 
-import { buildTitleProperty, buyTitle, destroyTitleProperty } from '@/api';
-import { BOARD_SPACES_BY_INDEX, NEIGHBORHOODS, PROPERTY_BLUEPRINTS } from '@/constants';
-import type { GameState, Player } from '@/types';
 import {
+  applyFederalTaxAudit,
+  buildTitleProperty,
+  buyTitle,
+  destroyTitleProperty,
+  payDebtWithBankDiscount,
+  payTaxPendingWithBankDiscount,
+} from '@/api';
+import { BOARD_SPACES_BY_INDEX, NEIGHBORHOODS, PROPERTY_BLUEPRINTS } from '@/constants';
+import type { GameState, Player, PlayerDebt, TaxPending } from '@/types';
+import {
+  calculateBankSettlementAmount,
+  calculateFederalTaxAudit,
   formatMoney,
   getAvailableBlueprintsForPropertySlot,
   getNextRealEstateBlueprintForSlot,
   getTitlePropertySlots,
+  hasCurrentSpaceAction,
 } from '@/utils';
 
 type CurrentBoardSpaceCardProps = {
@@ -69,6 +82,7 @@ export function CurrentBoardSpaceCard({
   const [building, setBuilding] = useState(false);
   const [buying, setBuying] = useState(false);
   const [buildModalOpen, setBuildModalOpen] = useState(false);
+  const [spaceActionLoading, setSpaceActionLoading] = useState<string | null>(null);
   const [selectedBlueprintKey, setSelectedBlueprintKey] = useState<string>();
   const selectedSlotIndex = Form.useWatch('slotIndex', form);
   const position = game.positions[currentPlayer.id] ?? 1;
@@ -99,23 +113,52 @@ export function CurrentBoardSpaceCard({
     (property) => !property && getAvailableBlueprintsForPropertySlot(property).length > 0,
   );
   const propertyActionTurnStartedAt = title?.lastPropertyActionTurnStartedAt;
-  const isCurrentPlayerTurn = game.turnPlayerId === currentPlayer.id;
+  const isCurrentPlayerTurn = game.status === 'playing' && game.turnPlayerId === currentPlayer.id;
+  const isAtBankSpace = boardSpace.kind === 'bank';
+  const isAtTaxSpace = boardSpace.kind === 'tax';
   const selectedBlueprint = selectedBlueprintKey ? getBlueprint(selectedBlueprintKey) : undefined;
+  const federalTaxAudit = useMemo(
+    () => calculateFederalTaxAudit(game, currentPlayer.id),
+    [currentPlayer.id, game],
+  );
+  const federalTaxAuditConfirmed = hasCurrentSpaceAction(
+    game,
+    currentPlayer.id,
+    boardSpace.index,
+    'federal-tax-audit',
+  );
+  const eligibleBankDebts = useMemo(
+    () =>
+      Object.values(finance?.debts ?? {}).filter(
+        (debt) =>
+          debt.status === 'active' && debt.kind !== 'player-loan' && debt.creditorId === null,
+      ),
+    [finance?.debts],
+  );
+  const bankTaxPendings = useMemo(
+    () =>
+      Object.values(game.taxPendings ?? {}).filter(
+        (tax) => tax.playerId === currentPlayer.id && tax.status === 'pending',
+      ),
+    [currentPlayer.id, game.taxPendings],
+  );
   const neighborhood = NEIGHBORHOODS.find((item) => item.key === boardSpace.neighborhoodKey);
   const neighborhoodName = neighborhood?.name ?? (isStreet ? 'Bairro' : boardSpace.name);
   const streetName = boardSpace.streetName ?? boardSpace.name;
   const bonusLabel = neighborhood?.bonusTarget === 'business' ? 'Empreendimentos' : 'Imoveis';
   const bonusBaseLabel =
     neighborhood?.bonusTarget === 'business' ? '20% sobre recebiveis' : '20% sobre alugueis';
-  const buyBlockReason = !isStreet
-    ? 'Esta casa nao possui titulo.'
-    : title?.ownerId
-      ? 'Titulo indisponivel.'
-      : landValue <= 0
-        ? 'Titulo sem valor definido.'
-        : (finance?.balance ?? 0) < landValue
-          ? 'Saldo insuficiente.'
-          : null;
+  const buyBlockReason = !isCurrentPlayerTurn
+    ? 'A compra fica disponivel apenas na sua vez de jogar.'
+    : !isStreet
+      ? 'Esta casa nao possui titulo.'
+      : title?.ownerId
+        ? 'Titulo indisponivel.'
+        : landValue <= 0
+          ? 'Titulo sem valor definido.'
+          : (finance?.balance ?? 0) < landValue
+            ? 'Saldo insuficiente.'
+            : null;
   const buildBlockReason = !isOwner
     ? 'Apenas o dono pode construir.'
     : title?.acquiredAtRound === game.round
@@ -241,6 +284,106 @@ export function CurrentBoardSpaceCard({
     });
   }
 
+  function getDebtSettlementLabel(debt: PlayerDebt) {
+    if (debt.kind === 'bank') return 'Emprestimo do Banco';
+    if (debt.kind === 'tax') return 'Divida ativa de imposto';
+    if (debt.kind === 'round-fees') return 'Taxas de rodada';
+
+    return debt.description;
+  }
+
+  function getTaxSettlementLabel(tax: TaxPending) {
+    return `${tax.titleName} - imposto pendente`;
+  }
+
+  async function runSpaceAction(actionKey: string, action: () => Promise<unknown>) {
+    setSpaceActionLoading(actionKey);
+
+    try {
+      await action();
+      message.success('Acao aplicada com sucesso.');
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : 'Nao foi possivel aplicar a acao.');
+    } finally {
+      setSpaceActionLoading(null);
+    }
+  }
+
+  function handleFederalTaxAudit() {
+    const hasPendingTaxes = federalTaxAudit.pendingTaxTotal > 0;
+
+    modal.confirm({
+      title: hasPendingTaxes ? 'Confirmar Malha fina' : 'Confirmar restituicao',
+      content: (
+        <Space orientation="vertical" size={8} style={{ width: '100%' }}>
+          <Flex justify="space-between" gap={12}>
+            <Typography.Text type="secondary">Total de propriedades</Typography.Text>
+            <Typography.Text strong>{formatMoney(federalTaxAudit.propertyTotal)}</Typography.Text>
+          </Flex>
+          <Flex justify="space-between" gap={12}>
+            <Typography.Text type="secondary">Impostos pendentes</Typography.Text>
+            <Typography.Text strong className={hasPendingTaxes ? 'bank-money--danger' : undefined}>
+              {formatMoney(federalTaxAudit.pendingTaxTotal)}
+            </Typography.Text>
+          </Flex>
+          <Flex justify="space-between" gap={12}>
+            <Typography.Text type="secondary">
+              {hasPendingTaxes ? 'Multa de 50%' : 'Bonus de 10%'}
+            </Typography.Text>
+            <Typography.Text
+              strong
+              className={hasPendingTaxes ? 'bank-money--danger' : 'bank-money--success'}
+            >
+              {formatMoney(
+                hasPendingTaxes ? federalTaxAudit.fineAmount : federalTaxAudit.refundAmount,
+              )}
+            </Typography.Text>
+          </Flex>
+        </Space>
+      ),
+      okText: 'Confirmar',
+      cancelText: 'Cancelar',
+      async onOk() {
+        await runSpaceAction('tax-audit', () => applyFederalTaxAudit(roomId, currentPlayer.id));
+      },
+    });
+  }
+
+  function handlePayDebtWithDiscount(debt: PlayerDebt) {
+    const discountedAmount = calculateBankSettlementAmount(debt.amount);
+
+    modal.confirm({
+      title: 'Pagar com desconto',
+      content: `Quitar ${debt.description} de ${formatMoney(debt.amount)} por ${formatMoney(
+        discountedAmount,
+      )}?`,
+      okText: 'Pagar',
+      cancelText: 'Cancelar',
+      async onOk() {
+        await runSpaceAction(debt.id, () =>
+          payDebtWithBankDiscount(roomId, currentPlayer.id, debt.id),
+        );
+      },
+    });
+  }
+
+  function handlePayTaxWithDiscount(tax: TaxPending) {
+    const discountedAmount = calculateBankSettlementAmount(tax.amount);
+
+    modal.confirm({
+      title: 'Pagar imposto com desconto',
+      content: `Quitar ${tax.titleName} de ${formatMoney(tax.amount)} por ${formatMoney(
+        discountedAmount,
+      )}?`,
+      okText: 'Pagar',
+      cancelText: 'Cancelar',
+      async onOk() {
+        await runSpaceAction(tax.id, () =>
+          payTaxPendingWithBankDiscount(roomId, currentPlayer.id, tax.id),
+        );
+      },
+    });
+  }
   async function handleUpgradeProperty(slotIndex: number) {
     const property = propertySlotItems[slotIndex];
     const nextBlueprint = getNextRealEstateBlueprintForSlot(property);
@@ -346,6 +489,141 @@ export function CurrentBoardSpaceCard({
             </Descriptions>
           ) : null}
 
+          {isAtTaxSpace ? (
+            <Space orientation="vertical" size={10} style={{ width: '100%' }}>
+              <Alert
+                type={federalTaxAudit.pendingTaxTotal > 0 ? 'warning' : 'success'}
+                showIcon
+                title={
+                  federalTaxAudit.pendingTaxTotal > 0
+                    ? 'Foram encontrados impostos pendentes. A multa sera de 50% sobre o total.'
+                    : 'Impostos em dia. O jogador recebe restituicao de 10% sobre o patrimonio em propriedades.'
+                }
+              />
+              <Descriptions bordered column={1} size="small">
+                <Descriptions.Item label="Total de propriedades">
+                  {formatMoney(federalTaxAudit.propertyTotal)}
+                </Descriptions.Item>
+                <Descriptions.Item label="Impostos pendentes">
+                  {formatMoney(federalTaxAudit.pendingTaxTotal)}
+                </Descriptions.Item>
+                <Descriptions.Item
+                  label={federalTaxAudit.pendingTaxTotal > 0 ? 'Multa 50%' : 'Bonus 10%'}
+                >
+                  {formatMoney(
+                    federalTaxAudit.pendingTaxTotal > 0
+                      ? federalTaxAudit.fineAmount
+                      : federalTaxAudit.refundAmount,
+                  )}
+                </Descriptions.Item>
+              </Descriptions>
+              <Button
+                block
+                type="primary"
+                icon={<CheckCircleOutlined />}
+                disabled={!isCurrentPlayerTurn || federalTaxAuditConfirmed}
+                loading={spaceActionLoading === 'tax-audit'}
+                onClick={handleFederalTaxAudit}
+              >
+                {federalTaxAuditConfirmed ? 'Conferencia ja realizada' : 'Confirmar conferencia'}
+              </Button>
+              {!isCurrentPlayerTurn ? (
+                <Typography.Text type="secondary">
+                  Esta acao fica disponivel apenas durante a propria jogada.
+                </Typography.Text>
+              ) : null}
+            </Space>
+          ) : null}
+
+          {isAtBankSpace ? (
+            <Space orientation="vertical" size={10} style={{ width: '100%' }}>
+              <Alert
+                type="info"
+                showIcon
+                title="A casa Banco permite quitar dividas elegiveis e impostos pendentes com 20% de desconto. Emprestimos entre jogadores nao entram."
+              />
+              {[...eligibleBankDebts, ...bankTaxPendings].length === 0 ? (
+                <Typography.Text type="secondary">
+                  Nenhuma pendencia elegivel para acerto.
+                </Typography.Text>
+              ) : null}
+              {eligibleBankDebts.map((debt) => {
+                const discountedAmount = calculateBankSettlementAmount(debt.amount);
+
+                return (
+                  <Flex
+                    key={debt.id}
+                    align="center"
+                    justify="space-between"
+                    gap={10}
+                    wrap
+                    className="board-space-property-slot"
+                  >
+                    <Flex align="center" gap={8} className="board-space-property-slot__content">
+                      <span className="board-space-property-icon board-space-property-icon--active">
+                        <BankOutlined />
+                      </span>
+                      <Space orientation="vertical" size={0}>
+                        <Typography.Text strong>{getDebtSettlementLabel(debt)}</Typography.Text>
+                        <Typography.Text type="secondary">
+                          {formatMoney(debt.amount)} por {formatMoney(discountedAmount)}
+                        </Typography.Text>
+                      </Space>
+                    </Flex>
+                    <Button
+                      size="small"
+                      type="primary"
+                      disabled={!isCurrentPlayerTurn || (finance?.balance ?? 0) < discountedAmount}
+                      loading={spaceActionLoading === debt.id}
+                      onClick={() => handlePayDebtWithDiscount(debt)}
+                    >
+                      Pagar com desconto
+                    </Button>
+                  </Flex>
+                );
+              })}
+              {bankTaxPendings.map((tax) => {
+                const discountedAmount = calculateBankSettlementAmount(tax.amount);
+
+                return (
+                  <Flex
+                    key={tax.id}
+                    align="center"
+                    justify="space-between"
+                    gap={10}
+                    wrap
+                    className="board-space-property-slot"
+                  >
+                    <Flex align="center" gap={8} className="board-space-property-slot__content">
+                      <span className="board-space-property-icon board-space-property-icon--active">
+                        <BankOutlined />
+                      </span>
+                      <Space orientation="vertical" size={0}>
+                        <Typography.Text strong>{getTaxSettlementLabel(tax)}</Typography.Text>
+                        <Typography.Text type="secondary">
+                          {formatMoney(tax.amount)} por {formatMoney(discountedAmount)}
+                        </Typography.Text>
+                      </Space>
+                    </Flex>
+                    <Button
+                      size="small"
+                      type="primary"
+                      disabled={!isCurrentPlayerTurn || (finance?.balance ?? 0) < discountedAmount}
+                      loading={spaceActionLoading === tax.id}
+                      onClick={() => handlePayTaxWithDiscount(tax)}
+                    >
+                      Pagar com desconto
+                    </Button>
+                  </Flex>
+                );
+              })}
+              {!isCurrentPlayerTurn ? (
+                <Typography.Text type="secondary">
+                  Os acertos ficam desabilitados depois que a vez passa para outro jogador.
+                </Typography.Text>
+              ) : null}
+            </Space>
+          ) : null}
           {isStreet && title?.ownerId ? (
             <Space orientation="vertical" size={8} style={{ width: '100%' }}>
               {isOwnedByOtherPlayer && visiblePropertySlotItems.length === 0 ? (

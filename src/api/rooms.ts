@@ -33,12 +33,16 @@ import type {
 import {
   advanceTurn,
   BANK_LOAN_INTEREST_RATE,
+  calculateBankSettlementAmount,
+  calculateFederalTaxAudit,
   calculateLoanDebtAmount,
   calculateProjectedBankScore,
   calculateTitleBankSaleValue,
   calculateTitleRent,
-  getTaxPendingPayableAmount,
   createLapPendings,
+  createSpaceActionKey,
+  getTaxPendingPayableAmount,
+  hasCurrentSpaceAction,
   didPassStart,
   getActivePlayers,
   getAvailableBlueprintsForPropertySlot,
@@ -1105,6 +1109,301 @@ export async function payTaxPending(roomId: string, playerId: string, taxPending
   return update(ref(database, `rooms/${roomId}`), { updatedAt: Date.now() });
 }
 
+export async function applyFederalTaxAudit(roomId: string, playerId: string) {
+  const room = await getRoom(roomId);
+
+  if (!room) {
+    throw new Error('Sala nao encontrada.');
+  }
+
+  const players = toPlayersArray(room.players);
+
+  await runTransaction(ref(database, `rooms/${roomId}/game`), (currentGame?: GameState) => {
+    const now = Date.now();
+    const game = hydrateGameState(currentGame, players);
+    const boardIndex = game.positions[playerId] ?? 1;
+    const boardSpace = BOARD_SPACES_BY_INDEX[boardIndex];
+    const finance = game.playerFinances[playerId];
+
+    if (game.status !== 'playing' || game.turnPlayerId !== playerId) {
+      throw new Error('A Receita Federal so pode ser confirmada na sua vez.');
+    }
+
+    if (boardSpace?.kind !== 'tax') {
+      throw new Error('Voce precisa estar na casa Receita Federal.');
+    }
+
+    if (!finance) {
+      throw new Error('Financas do jogador nao encontradas.');
+    }
+
+    if (hasCurrentSpaceAction(game, playerId, boardIndex, 'federal-tax-audit')) {
+      throw new Error('A conferencia da Receita Federal ja foi feita nesta jogada.');
+    }
+
+    const audit = calculateFederalTaxAudit(game, playerId);
+    const actionKey = createSpaceActionKey(
+      playerId,
+      boardIndex,
+      'federal-tax-audit',
+      game.turnStartedAt,
+    );
+    let nextFinance: PlayerFinance = finance;
+
+    if (audit.pendingTaxTotal <= 0) {
+      nextFinance = appendFinanceTransaction(
+        {
+          ...finance,
+          balance: finance.balance + audit.refundAmount,
+        },
+        {
+          kind: 'tax-refund',
+          amount: audit.refundAmount,
+          round: game.round,
+          description: 'Restituicao do imposto de renda',
+          boardIndex,
+        },
+        now,
+      );
+    } else {
+      const paidAmount = Math.min(finance.balance, audit.fineAmount);
+      const activeDebtAmount = audit.fineAmount - paidAmount;
+
+      if (paidAmount > 0) {
+        nextFinance = appendFinanceTransaction(
+          {
+            ...nextFinance,
+            balance: nextFinance.balance - paidAmount,
+          },
+          {
+            kind: 'tax-payment',
+            amount: -paidAmount,
+            round: game.round,
+            description: 'Multa da Receita Federal',
+            boardIndex,
+          },
+          now,
+        );
+      }
+
+      if (activeDebtAmount > 0) {
+        const debt = createDebt(
+          {
+            kind: 'tax',
+            creditorId: null,
+            debtorId: playerId,
+            amount: activeDebtAmount,
+            originalAmount: activeDebtAmount,
+            createdAtRound: game.round,
+            description: 'Malha fina - multa da Receita Federal',
+            boardIndex,
+          },
+          now,
+        );
+
+        nextFinance = appendFinanceTransaction(
+          {
+            ...nextFinance,
+            debts: {
+              ...nextFinance.debts,
+              [debt.id]: debt,
+            },
+          },
+          {
+            kind: 'debt-created',
+            amount: -activeDebtAmount,
+            round: game.round,
+            description: 'Divida ativa de Malha fina',
+            boardIndex,
+          },
+          now,
+        );
+      }
+    }
+
+    return toFirebaseValue({
+      ...game,
+      playerFinances: {
+        ...game.playerFinances,
+        [playerId]: nextFinance,
+      },
+      spaceActions: {
+        ...game.spaceActions,
+        [actionKey]: {
+          id: actionKey,
+          playerId,
+          boardIndex,
+          action: 'federal-tax-audit',
+          turnStartedAt: game.turnStartedAt,
+          round: game.round,
+          createdAt: now,
+        },
+      },
+      updatedAt: now,
+    });
+  });
+
+  return update(ref(database, `rooms/${roomId}`), { updatedAt: Date.now() });
+}
+
+function isBankSettlementDebtEligible(debt: PlayerDebt) {
+  return debt.status === 'active' && debt.kind !== 'player-loan' && debt.creditorId === null;
+}
+
+export async function payDebtWithBankDiscount(roomId: string, playerId: string, debtId: string) {
+  const room = await getRoom(roomId);
+
+  if (!room) {
+    throw new Error('Sala nao encontrada.');
+  }
+
+  const players = toPlayersArray(room.players);
+
+  await runTransaction(ref(database, `rooms/${roomId}/game`), (currentGame?: GameState) => {
+    const now = Date.now();
+    const game = hydrateGameState(currentGame, players);
+    const boardIndex = game.positions[playerId] ?? 1;
+    const debtorFinance = game.playerFinances[playerId];
+    const debt = debtorFinance?.debts?.[debtId];
+
+    if (game.status !== 'playing' || game.turnPlayerId !== playerId) {
+      throw new Error('Acertos do Banco so ficam disponiveis na sua vez.');
+    }
+
+    if (BOARD_SPACES_BY_INDEX[boardIndex]?.kind !== 'bank') {
+      throw new Error('Voce precisa estar na casa Banco para usar o desconto.');
+    }
+
+    if (!debtorFinance || !debt || !isBankSettlementDebtEligible(debt)) {
+      throw new Error('Divida elegivel nao encontrada.');
+    }
+
+    const paidAmount = calculateBankSettlementAmount(debt.amount);
+
+    if (debtorFinance.balance < paidAmount) {
+      throw new Error('Saldo insuficiente para quitar esta divida com desconto.');
+    }
+
+    const nextDebt: PlayerDebt = {
+      ...debt,
+      amount: 0,
+      status: 'paid',
+      updatedAt: now,
+    };
+    const nextDebtorFinance = appendFinanceTransaction(
+      {
+        ...debtorFinance,
+        balance: debtorFinance.balance - paidAmount,
+        debts: {
+          ...debtorFinance.debts,
+          [debt.id]: nextDebt,
+        },
+      },
+      {
+        kind: 'debt-payment',
+        amount: -paidAmount,
+        round: game.round,
+        description: `Acerto com desconto: ${debt.description}`,
+        boardIndex: debt.boardIndex ?? boardIndex,
+      },
+      now,
+    );
+    const bankLoans = Object.fromEntries(
+      Object.entries(game.bankLoans).map(([key, loan]) => [
+        key,
+        loan.debtId === debt.id ? { ...loan, status: 'paid' as const, paidAt: now } : loan,
+      ]),
+    );
+
+    return toFirebaseValue({
+      ...game,
+      bankLoans,
+      playerFinances: updateDebtMirrors(game, debt, nextDebt, nextDebtorFinance),
+      updatedAt: now,
+    });
+  });
+
+  return update(ref(database, `rooms/${roomId}`), { updatedAt: Date.now() });
+}
+
+export async function payTaxPendingWithBankDiscount(
+  roomId: string,
+  playerId: string,
+  taxPendingId: string,
+) {
+  const room = await getRoom(roomId);
+
+  if (!room) {
+    throw new Error('Sala nao encontrada.');
+  }
+
+  const players = toPlayersArray(room.players);
+
+  await runTransaction(ref(database, `rooms/${roomId}/game`), (currentGame?: GameState) => {
+    const now = Date.now();
+    const game = hydrateGameState(currentGame, players);
+    const boardIndex = game.positions[playerId] ?? 1;
+    const finance = game.playerFinances[playerId];
+    const taxPending = game.taxPendings[taxPendingId];
+
+    if (game.status !== 'playing' || game.turnPlayerId !== playerId) {
+      throw new Error('Acertos do Banco so ficam disponiveis na sua vez.');
+    }
+
+    if (BOARD_SPACES_BY_INDEX[boardIndex]?.kind !== 'bank') {
+      throw new Error('Voce precisa estar na casa Banco para usar o desconto.');
+    }
+
+    if (
+      !finance ||
+      !taxPending ||
+      taxPending.playerId !== playerId ||
+      taxPending.status !== 'pending'
+    ) {
+      throw new Error('Imposto pendente nao encontrado.');
+    }
+
+    const amount = calculateBankSettlementAmount(taxPending.amount);
+
+    if (finance.balance < amount) {
+      throw new Error('Saldo insuficiente para pagar este imposto com desconto.');
+    }
+
+    const nextFinance = appendFinanceTransaction(
+      {
+        ...finance,
+        balance: finance.balance - amount,
+      },
+      {
+        kind: 'tax-payment',
+        amount: -amount,
+        round: game.round,
+        description: `Acerto com desconto: ${taxPending.titleName}`,
+        boardIndex: taxPending.boardIndex,
+      },
+      now,
+    );
+
+    return toFirebaseValue({
+      ...game,
+      taxPendings: {
+        ...game.taxPendings,
+        [taxPendingId]: {
+          ...taxPending,
+          status: 'paid',
+          paidAt: now,
+        },
+      },
+      playerFinances: {
+        ...game.playerFinances,
+        [playerId]: nextFinance,
+      },
+      updatedAt: now,
+    });
+  });
+
+  return update(ref(database, `rooms/${roomId}`), { updatedAt: Date.now() });
+}
 export async function confirmRoundPending(roomId: string, playerId: string, pendingId: string) {
   const room = await getRoom(roomId);
 
@@ -1284,6 +1583,10 @@ export async function buyTitle(roomId: string, playerId: string, boardIndex: num
       throw new Error('Financas do jogador nao encontradas.');
     }
 
+    if (game.turnPlayerId !== playerId || game.positions[playerId] !== boardIndex) {
+      throw new Error('Compra disponivel apenas na sua vez e na casa atual.');
+    }
+
     if (playerFinance.balance < landValue) {
       throw new Error('Saldo insuficiente para comprar este titulo.');
     }
@@ -1379,8 +1682,8 @@ export async function buildTitleProperty(
       throw new Error('Construcao disponivel apenas a partir da proxima rodada.');
     }
 
-    if (game.turnPlayerId !== playerId) {
-      throw new Error('Acoes de propriedade so podem ser feitas na sua vez.');
+    if (game.turnPlayerId !== playerId || game.positions[playerId] !== boardIndex) {
+      throw new Error('Acoes de propriedade so podem ser feitas na sua vez e na casa atual.');
     }
 
     if (title.lastPropertyActionTurnStartedAt === game.turnStartedAt) {
@@ -1505,8 +1808,8 @@ export async function destroyTitleProperty(
       throw new Error('Destruicao disponivel apenas a partir da proxima rodada.');
     }
 
-    if (game.turnPlayerId !== playerId) {
-      throw new Error('Acoes de propriedade so podem ser feitas na sua vez.');
+    if (game.turnPlayerId !== playerId || game.positions[playerId] !== boardIndex) {
+      throw new Error('Acoes de propriedade so podem ser feitas na sua vez e na casa atual.');
     }
 
     if (title.lastPropertyActionTurnStartedAt === game.turnStartedAt) {
@@ -2268,9 +2571,14 @@ export async function rollPlayerDice(
       throw new Error('Aguarde a sua vez de jogar.');
     }
 
+    const lastRoll = game.playerLastRolls[playerId];
+
+    if (lastRoll && game.turnStartedAt && lastRoll.createdAt >= game.turnStartedAt) {
+      throw new Error('Voce ja girou os dados nesta jogada.');
+    }
+
     const position = game.positions[playerId] ?? 1;
     const nextPosition = moveBoardPosition(position, roll.total);
-    const { nextCompletedTurns, nextPlayerId, nextRound } = advanceTurn(game, roll);
     const gameWithRentSettled = createEventPendingForPosition(
       createRentPendingForPosition(game, playerId, nextPosition, now),
       playerId,
@@ -2287,16 +2595,12 @@ export async function rollPlayerDice(
 
     return toFirebaseValue({
       ...gameWithRentSettled,
-      round: nextRound,
       roundPendings: lapPendings.roundPendings,
       taxPendings: lapPendings.taxPendings,
-      turnPlayerId: nextPlayerId,
-      turnStartedAt: now,
       positions: {
         ...gameWithRentSettled.positions,
         [playerId]: nextPosition,
       },
-      completedTurns: nextCompletedTurns,
       lastRoll: roll,
       playerLastRolls: {
         ...gameWithRentSettled.playerLastRolls,
@@ -2311,4 +2615,48 @@ export async function rollPlayerDice(
   });
 
   return roll;
+}
+
+export async function finishPlayerTurn(roomId: string, playerId: string) {
+  const room = await getRoom(roomId);
+
+  if (!room) {
+    throw new Error('Sala nao encontrada.');
+  }
+
+  const players = toPlayersArray(room.players);
+  const now = Date.now();
+
+  await runTransaction(ref(database, `rooms/${roomId}/game`), (currentGame?: GameState) => {
+    const game = hydrateGameState(currentGame, players);
+
+    if (game.status !== 'playing') {
+      throw new Error('A partida precisa estar em andamento para concluir a jogada.');
+    }
+
+    if (game.turnPlayerId !== playerId) {
+      throw new Error('Aguarde a sua vez de jogar.');
+    }
+
+    const roll = game.playerLastRolls[playerId];
+
+    if (!roll || (game.turnStartedAt && roll.createdAt < game.turnStartedAt)) {
+      throw new Error('Gire os dados antes de concluir a jogada.');
+    }
+
+    const { nextCompletedTurns, nextPlayerId, nextRound } = advanceTurn(game, roll);
+
+    return toFirebaseValue({
+      ...game,
+      round: nextRound,
+      turnPlayerId: nextPlayerId,
+      turnStartedAt: now,
+      completedTurns: nextCompletedTurns,
+      updatedAt: now,
+    });
+  });
+
+  return update(ref(database, `rooms/${roomId}`), {
+    updatedAt: now,
+  });
 }

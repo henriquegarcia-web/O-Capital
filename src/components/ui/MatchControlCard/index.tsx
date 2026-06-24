@@ -1,8 +1,8 @@
-import { PlayCircleOutlined } from '@ant-design/icons';
+import { CheckCircleOutlined, PlayCircleOutlined } from '@ant-design/icons';
 import { App, Button, Card, Descriptions, Flex, Space, Tag, Typography } from 'antd';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { rollPlayerDice } from '@/api';
+import { finishPlayerTurn, rollPlayerDice } from '@/api';
 import type { GameState, Player, Room } from '@/types';
 import { hydrateGameState } from '@/utils';
 
@@ -36,9 +36,14 @@ export function MatchControlCard({ currentPlayer, players, room }: MatchControlC
   const { message } = App.useApp();
   const [rolling, setRolling] = useState(false);
   const [diceResult, setDiceResult] = useState<DiceResult | null>(null);
+  const [finishingTurn, setFinishingTurn] = useState(false);
   const timeoutsRef = useRef<number[]>([]);
   const game = useMemo<GameState>(() => hydrateGameState(room.game, players), [players, room.game]);
   const isCurrentTurn = game.status === 'playing' && game.turnPlayerId === currentPlayer.id;
+  const lastRoll = game.playerLastRolls[currentPlayer.id];
+  const hasRolledThisTurn = Boolean(
+    lastRoll && game.turnStartedAt && lastRoll.createdAt >= game.turnStartedAt,
+  );
 
   useEffect(() => {
     return () => {
@@ -49,6 +54,19 @@ export function MatchControlCard({ currentPlayer, players, room }: MatchControlC
   function clearRollTimers() {
     timeoutsRef.current.forEach((timeout) => window.clearTimeout(timeout));
     timeoutsRef.current = [];
+  }
+
+  async function handleFinishTurn() {
+    setFinishingTurn(true);
+
+    try {
+      await finishPlayerTurn(room.id, currentPlayer.id);
+      message.success('Jogada concluida.');
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : 'Nao foi possivel concluir a jogada.');
+    } finally {
+      setFinishingTurn(false);
+    }
   }
 
   function handleRollDice() {
@@ -108,17 +126,29 @@ export function MatchControlCard({ currentPlayer, players, room }: MatchControlC
             <Descriptions.Item label="Rodada">{game.round}</Descriptions.Item>
           </Descriptions>
 
-          <Button
-            type="primary"
-            size="large"
-            block
-            icon={<PlayCircleOutlined />}
-            disabled={!isCurrentTurn || rolling}
-            loading={rolling}
-            onClick={handleRollDice}
-          >
-            Girar dados
-          </Button>
+          <Flex gap={10} wrap>
+            <Button
+              type="primary"
+              size="large"
+              icon={<PlayCircleOutlined />}
+              disabled={!isCurrentTurn || rolling || hasRolledThisTurn || finishingTurn}
+              loading={rolling}
+              onClick={handleRollDice}
+              style={{ flex: '1 1 160px' }}
+            >
+              Girar dados
+            </Button>
+            <Button
+              size="large"
+              icon={<CheckCircleOutlined />}
+              disabled={!isCurrentTurn || rolling || !hasRolledThisTurn}
+              loading={finishingTurn}
+              onClick={() => void handleFinishTurn()}
+              style={{ flex: '1 1 160px' }}
+            >
+              Concluir jogada
+            </Button>
+          </Flex>
         </Space>
       </Card>
       <DiceRollOverlay open={rolling} result={diceResult} />

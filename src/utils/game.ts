@@ -24,6 +24,9 @@ export const BANK_LOAN_LIMIT_STEP = 1000;
 export const BANK_LOAN_LIMIT_PATRIMONY_STEP = 5000;
 export const BANK_LOAN_MIN_SCORE = 50;
 export const LOCALITY_BONUS_RATE = 0.2;
+export const FEDERAL_TAX_REFUND_RATE = 0.1;
+export const FEDERAL_TAX_FINE_RATE = 0.5;
+export const BANK_SETTLEMENT_DISCOUNT_RATE = 0.2;
 
 export function getActivePlayers(players: Player[]) {
   return players.filter((player) => player.status !== 'eliminated');
@@ -102,6 +105,7 @@ export function getInitialGameState(players: Player[], now = Date.now()): GameSt
     bankLoans: {},
     taxPendings: {},
     roundPendings: {},
+    spaceActions: {},
     titleSaleOffers: {},
     titleAuctions: {},
     playerLoanOffers: {},
@@ -143,6 +147,7 @@ export function hydrateGameState(game: GameState | undefined, players: Player[])
     bankLoans: baseGame.bankLoans ?? {},
     taxPendings: baseGame.taxPendings ?? {},
     roundPendings: baseGame.roundPendings ?? {},
+    spaceActions: baseGame.spaceActions ?? {},
     titleSaleOffers: baseGame.titleSaleOffers ?? {},
     titleAuctions: baseGame.titleAuctions ?? {},
     playerLoanOffers: baseGame.playerLoanOffers ?? {},
@@ -213,6 +218,42 @@ export function calculatePlayerFortune(game: GameState, playerId: string) {
     calculatePlayerNetWorth(game, playerId) +
     calculateReceivableTotal(finance) -
     calculateActiveDebtTotal(finance)
+  );
+}
+
+export function calculateFederalTaxAudit(game: GameState, playerId: string) {
+  const propertyTotal = calculatePlayerNetWorth(game, playerId);
+  const pendingTaxTotal = calculatePendingTaxTotal(game, playerId);
+
+  return {
+    propertyTotal,
+    pendingTaxTotal,
+    refundAmount: Math.round(propertyTotal * FEDERAL_TAX_REFUND_RATE),
+    fineAmount: Math.round(pendingTaxTotal * FEDERAL_TAX_FINE_RATE),
+  };
+}
+
+export function calculateBankSettlementAmount(amount: number) {
+  return Math.round(amount * (1 - BANK_SETTLEMENT_DISCOUNT_RATE));
+}
+
+export function createSpaceActionKey(
+  playerId: string,
+  boardIndex: number,
+  action: string,
+  turnStartedAt: number | null,
+) {
+  return `${playerId}:${boardIndex}:${action}:${turnStartedAt ?? 'no-turn'}`;
+}
+
+export function hasCurrentSpaceAction(
+  game: GameState,
+  playerId: string,
+  boardIndex: number,
+  action: string,
+) {
+  return Boolean(
+    game.spaceActions?.[createSpaceActionKey(playerId, boardIndex, action, game.turnStartedAt)],
   );
 }
 
@@ -423,7 +464,11 @@ export function isPlayerOnBankSpace(game: GameState, playerId: string) {
 }
 
 export function getTaxPendingPayableAmount(game: GameState, playerId: string, tax: TaxPending) {
-  return isPlayerOnBankSpace(game, playerId) ? tax.discountedAmount : tax.amount;
+  return isPlayerOnBankSpace(game, playerId) &&
+    game.status === 'playing' &&
+    game.turnPlayerId === playerId
+    ? calculateBankSettlementAmount(tax.amount)
+    : tax.amount;
 }
 
 export function calculatePendingTaxTotal(game: GameState, playerId: string) {

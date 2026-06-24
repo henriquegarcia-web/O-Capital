@@ -96,6 +96,7 @@ export type PlayerTransactionKind =
   | 'debt-received'
   | 'debt-forgiven'
   | 'tax-payment'
+  | 'tax-refund'
   | 'round-income'
   | 'maintenance-payment'
   | 'round-statement'
@@ -254,6 +255,16 @@ export type PlayerLoanOffer = {
   debtId?: string;
 };
 
+export type BoardSpaceAction = {
+  id: string;
+  playerId: string;
+  boardIndex: number;
+  action: string;
+  turnStartedAt: number | null;
+  round: number;
+  createdAt: number;
+};
+
 export type GameStatus = 'waiting' | 'playing' | 'paused' | 'finished';
 
 export type GameState = {
@@ -271,6 +282,7 @@ export type GameState = {
   bankLoans: Record<string, BankLoan>;
   taxPendings: Record<string, TaxPending>;
   roundPendings: Record<string, RoundPending>;
+  spaceActions: Record<string, BoardSpaceAction>;
   titleSaleOffers: Record<string, TitleSaleOffer>;
   titleAuctions: Record<string, TitleAuction>;
   playerLoanOffers: Record<string, PlayerLoanOffer>;
