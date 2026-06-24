@@ -508,7 +508,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 3px;
-  /* min-height: 116px; */
+  min-height: 92px;
   padding: 12px;
   background: rgb(255 255 255 / 10%);
   border: 1px solid rgb(255 255 255 / 16%);
@@ -646,6 +646,22 @@ body {
   min-width: 0;
 }
 
+.bank-title-property-item {
+  min-width: 0;
+}
+
+.bank-title-property-item__icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #1f7a5f, #0f766e);
+  border-radius: 6px;
+}
+
 .bank-title-actions {
   justify-content: flex-end;
 }
@@ -745,6 +761,24 @@ body {
   background: linear-gradient(135deg, #1f7a5f, #0f766e);
   border-style: solid;
   border-color: #1f7a5f;
+}
+
+.board-space-property-slot {
+  width: 100%;
+  min-width: 0;
+  padding: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.board-space-property-slot__content {
+  min-width: 0;
+}
+
+.board-space-property-slot__content .ant-typography {
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .game-board-shell {
@@ -893,8 +927,7 @@ body {
   overflow: hidden;
   background:
     radial-gradient(circle at center, rgb(255 255 255 / 8%), transparent 45%),
-    linear-gradient(145deg, rgb(255 255 255 / 12%), rgb(255 255 255 / 3%)),
-    #18203a;
+    linear-gradient(145deg, rgb(255 255 255 / 12%), rgb(255 255 255 / 3%)), #18203a;
   border: 1px solid rgb(255 255 255 / 12%);
   border-radius: 28px;
   box-shadow:
@@ -953,4 +986,57 @@ body {
   .banker-config-submit {
     width: 100%;
   }
+}
+
+.bank-money--danger {
+  color: #dc2626 !important;
+}
+
+.bank-money--success {
+  color: #16a34a !important;
+}
+
+.bank-two-actions {
+  width: 100%;
+}
+
+.bank-two-actions .ant-btn {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.bank-page-metric {
+  min-height: 100%;
+  background: rgb(255 255 255 / 12%);
+  border-color: rgb(255 255 255 / 18%);
+}
+
+.bank-loan-collapse {
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.bank-loan-collapse .ant-collapse-header {
+  align-items: center !important;
+  min-height: 48px;
+  color: #17211d !important;
+  font-weight: 800;
+}
+
+.bank-loan-collapse .ant-collapse-content-box {
+  padding: 12px !important;
+}
+
+.bank-statement-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 10px;
+  border-top: 1px solid #e6efeb;
+}
+
+.player-finance-card .ant-statistic-title,
+.player-finance-card .ant-statistic-content {
+  color: #ffffff !important;
 }

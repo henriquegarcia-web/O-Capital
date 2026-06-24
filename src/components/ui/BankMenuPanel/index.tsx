@@ -3,20 +3,23 @@ import {
   BankOutlined,
   CheckCircleOutlined,
   DollarOutlined,
-  LineChartOutlined,
   SafetyCertificateOutlined,
+  SwapOutlined,
 } from '@ant-design/icons';
 import {
+  Alert,
   App,
   Button,
   Card,
   Col,
+  Collapse,
   Empty,
   Flex,
   Form,
   Grid,
   InputNumber,
   Modal,
+  Select,
   Row,
   Space,
   Statistic,
@@ -27,50 +30,55 @@ import {
 import type { ColumnsType } from 'antd/es/table';
 
 import {
+  acceptPlayerLoanOffer,
   confirmRoundPending,
+  createPlayerLoanOffer,
+  declinePlayerLoanOffer,
   forgiveReceivable,
   payDebt,
   payTaxPending,
   requestBankLoan,
 } from '@/api';
-import type { GameState, Player, PlayerDebt, Room, RoundPending, TaxPending } from '@/types';
+import type { GameState, Player, PlayerDebt, PlayerLoanOffer, Room, TaxPending } from '@/types';
 import {
   BANK_LOAN_INTEREST_RATE,
-  BANK_LOAN_MIN_SCORE,
   calculateActiveDebtTotal,
   calculateBankScore,
   calculateCreditLimit,
-  calculatePlayerRoundExpenses,
-  calculatePlayerRoundIncome,
+  calculateLoanDebtAmount,
+  calculatePendingTaxTotal,
+  calculateProjectedBankScore,
   calculateReceivableTotal,
   formatMoney,
   getBankScoreLabel,
+  getTaxPendingPayableAmount,
+  isPlayerOnBankSpace,
 } from '@/utils';
 
 type BankMenuPanelProps = {
   room: Room;
   game: GameState;
   currentPlayer: Player;
+  players: Player[];
 };
 
 type DebtPaymentState = {
   debt: PlayerDebt;
 };
 
-function pendingKindLabel(kind: RoundPending['kind']) {
-  const labels: Record<RoundPending['kind'], string> = {
-    dividends: 'Dividendos',
-    maintenance: 'Manutencoes',
-    taxes: 'Impostos',
-  };
-
-  return labels[kind];
+function getPlayerName(players: Player[], playerId: string) {
+  return players.find((player) => player.id === playerId)?.name ?? 'Jogador';
 }
 
-export function BankMenuPanel({ currentPlayer, game, room }: BankMenuPanelProps) {
+function formatPropertyCount(count: number) {
+  return `${count} ${count === 1 ? 'propriedade' : 'propriedades'}`;
+}
+
+export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPanelProps) {
   const { message, modal } = App.useApp();
   const screens = Grid.useBreakpoint();
   const [loanForm] = Form.useForm<{ amount: number }>();
+  const [playerLoanForm] = Form.useForm<{ lenderId: string; amount: number }>();
   const [paymentForm] = Form.useForm<{ amount: number }>();
   const [paymentState, setPaymentState] = useState<DebtPaymentState | null>(null);
   const [loadingAction, setLoadingAction] = useState(false);
@@ -93,22 +101,61 @@ export function BankMenuPanel({ currentPlayer, game, room }: BankMenuPanelProps)
       ),
     [currentPlayer.id, game.taxPendings],
   );
-  const roundPendings = useMemo(
+  const statementPending = useMemo(
     () =>
-      Object.values(game.roundPendings ?? {}).filter(
+      Object.values(game.roundPendings ?? {}).find(
         (pending) =>
           pending.playerId === currentPlayer.id &&
           pending.status === 'pending' &&
-          pending.kind !== 'taxes',
+          pending.kind === 'statement',
       ),
     [currentPlayer.id, game.roundPendings],
   );
+  const receivedLoanOffers = useMemo(
+    () =>
+      Object.values(game.playerLoanOffers ?? {}).filter(
+        (offer) => offer.lenderId === currentPlayer.id && offer.status === 'pending',
+      ),
+    [currentPlayer.id, game.playerLoanOffers],
+  );
+  const sentLoanOffers = useMemo(
+    () =>
+      Object.values(game.playerLoanOffers ?? {}).filter(
+        (offer) => offer.borrowerId === currentPlayer.id && offer.status === 'pending',
+      ),
+    [currentPlayer.id, game.playerLoanOffers],
+  );
+  const loanLenderOptions = players
+    .filter((player) => player.id !== currentPlayer.id && player.status !== 'eliminated')
+    .map((player) => ({ value: player.id, label: player.name }));
   const creditLimit = calculateCreditLimit(game, currentPlayer.id);
   const score = calculateBankScore(game, currentPlayer.id);
   const activeDebtTotal = calculateActiveDebtTotal(finance);
   const availableCredit = Math.max(0, creditLimit - activeDebtTotal);
   const loanAmount = Form.useWatch('amount', loanForm) ?? 0;
-  const loanDebtTotal = Math.round(Number(loanAmount || 0) * (1 + BANK_LOAN_INTEREST_RATE));
+  const playerLoanAmount = Form.useWatch('amount', playerLoanForm) ?? 0;
+  const playerLoanProjectedScore =
+    Number(playerLoanAmount || 0) > 0
+      ? calculateProjectedBankScore(game, currentPlayer.id, Number(playerLoanAmount))
+      : score;
+  const isPlayerLoanBankruptcy = Number(playerLoanAmount || 0) > 0 && playerLoanProjectedScore <= 0;
+  const isPlayerLoanPreBankruptcy = playerLoanProjectedScore >= 1 && playerLoanProjectedScore <= 10;
+  const loanDebtTotal = calculateLoanDebtAmount(Number(loanAmount || 0));
+  const projectedScore =
+    loanDebtTotal > 0 ? calculateProjectedBankScore(game, currentPlayer.id, loanDebtTotal) : score;
+  const isProjectedBankruptcy = loanDebtTotal > 0 && projectedScore <= 0;
+  const isProjectedPreBankruptcy = projectedScore >= 1 && projectedScore <= 10;
+  const isAtBank = isPlayerOnBankSpace(game, currentPlayer.id);
+  const pendingTaxTotal = calculatePendingTaxTotal(game, currentPlayer.id);
+  const activeLoanCount = activeDebts.filter(
+    (debt) => debt.kind === 'bank' || debt.kind === 'player-loan',
+  ).length;
+  const statementBreakdown = statementPending?.breakdown ?? {
+    receivables: 0,
+    maintenance: 0,
+    taxes: 0,
+    netAmount: 0,
+  };
   const interestPercent = Math.round(BANK_LOAN_INTEREST_RATE * 100);
 
   async function runAction(action: () => Promise<unknown>, successMessage: string) {
@@ -118,6 +165,7 @@ export function BankMenuPanel({ currentPlayer, game, room }: BankMenuPanelProps)
       await action();
       message.success(successMessage);
       loanForm.resetFields();
+      playerLoanForm.resetFields();
       paymentForm.resetFields();
       setPaymentState(null);
     } catch (error) {
@@ -127,7 +175,12 @@ export function BankMenuPanel({ currentPlayer, game, room }: BankMenuPanelProps)
     }
   }
 
-  function confirmAction(title: string, content: string, action: () => Promise<unknown>, successMessage: string) {
+  function confirmAction(
+    title: string,
+    content: string,
+    action: () => Promise<unknown>,
+    successMessage: string,
+  ) {
     modal.confirm({
       title,
       content,
@@ -137,6 +190,12 @@ export function BankMenuPanel({ currentPlayer, game, room }: BankMenuPanelProps)
         await runAction(action, successMessage);
       },
     });
+  }
+
+  function getTaxTitleLabel(tax: TaxPending) {
+    const propertyCount = game.titles[tax.boardIndex]?.properties?.length ?? 0;
+
+    return `${tax.titleName} (${formatPropertyCount(propertyCount)})`;
   }
 
   const renderMobileDebtCards = () => (
@@ -171,7 +230,9 @@ export function BankMenuPanel({ currentPlayer, game, room }: BankMenuPanelProps)
           <div className="bank-list-card" key={receivable.id}>
             <Flex justify="space-between" gap={12} wrap>
               <Typography.Text strong>{receivable.description}</Typography.Text>
-              <Typography.Text strong>{formatMoney(receivable.amount)}</Typography.Text>
+              <Typography.Text strong className="bank-money--success">
+                {formatMoney(receivable.amount)}
+              </Typography.Text>
             </Flex>
             <Button
               size="small"
@@ -198,66 +259,52 @@ export function BankMenuPanel({ currentPlayer, game, room }: BankMenuPanelProps)
       {taxes.length === 0 ? (
         <Empty description="Nenhum imposto pendente" />
       ) : (
-        taxes.map((tax) => (
-          <div className="bank-list-card" key={tax.id}>
-            <Space orientation="vertical" size={6} style={{ width: '100%' }}>
-              <Typography.Text strong>{tax.titleName}</Typography.Text>
-              <Flex justify="space-between" gap={12}>
-                <Typography.Text type="secondary">Valor</Typography.Text>
-                <Typography.Text>{formatMoney(tax.amount)}</Typography.Text>
-              </Flex>
-              <Flex justify="space-between" gap={12}>
-                <Typography.Text type="secondary">Agora</Typography.Text>
-                <Typography.Text strong>{formatMoney(tax.discountedAmount)}</Typography.Text>
-              </Flex>
-            </Space>
-            <Button
-              size="small"
-              block
-              onClick={() =>
-                confirmAction(
-                  'Confirmar pagamento',
-                  `Pagar imposto de ${formatMoney(tax.discountedAmount)} agora?`,
-                  () => payTaxPending(room.id, currentPlayer.id, tax.id),
-                  'Imposto pago.',
-                )
-              }
-            >
-              Pagar
-            </Button>
-          </div>
-        ))
-      )}
-    </Space>
-  );
+        taxes.map((tax) => {
+          const payableAmount = getTaxPendingPayableAmount(game, currentPlayer.id, tax);
 
-  const renderMobilePendingCards = () => (
-    <Space orientation="vertical" size={10} style={{ width: '100%' }}>
-      {roundPendings.length === 0 ? (
-        <Empty description="Nenhuma pendencia" />
-      ) : (
-        roundPendings.map((pending) => (
-          <div className="bank-list-card" key={pending.id}>
-            <Flex justify="space-between" gap={12} wrap>
-              <Typography.Text strong>{pendingKindLabel(pending.kind)}</Typography.Text>
-              <Typography.Text strong>{formatMoney(pending.amount)}</Typography.Text>
-            </Flex>
-            <Button
-              size="small"
-              block
-              onClick={() =>
-                confirmAction(
-                  'Confirmar pendencia',
-                  `Confirmar ${pendingKindLabel(pending.kind)} de ${formatMoney(pending.amount)}?`,
-                  () => confirmRoundPending(room.id, currentPlayer.id, pending.id),
-                  'Pendencia confirmada.',
-                )
-              }
-            >
-              Confirmar
-            </Button>
-          </div>
-        ))
+          return (
+            <div className="bank-list-card" key={tax.id}>
+              <Space orientation="vertical" size={6} style={{ width: '100%' }}>
+                <Typography.Text strong>{getTaxTitleLabel(tax)}</Typography.Text>
+                <Flex justify="space-between" gap={12}>
+                  <Typography.Text type="secondary">Valor cheio</Typography.Text>
+                  <Typography.Text className="bank-money--danger">
+                    {formatMoney(tax.amount)}
+                  </Typography.Text>
+                </Flex>
+                {isAtBank ? (
+                  <>
+                    <Flex justify="space-between" gap={12}>
+                      <Typography.Text type="secondary">Com desconto</Typography.Text>
+                      <Typography.Text strong className="bank-money--danger">
+                        {formatMoney(payableAmount)}
+                      </Typography.Text>
+                    </Flex>
+                    <Alert
+                      type="info"
+                      showIcon
+                      message="Voce esta na casa Banco. O desconto vale individualmente para este imposto."
+                    />
+                  </>
+                ) : null}
+              </Space>
+              <Button
+                size="small"
+                block
+                onClick={() =>
+                  confirmAction(
+                    'Confirmar pagamento',
+                    `Pagar imposto de ${formatMoney(payableAmount)} agora?`,
+                    () => payTaxPending(room.id, currentPlayer.id, tax.id),
+                    'Imposto pago.',
+                  )
+                }
+              >
+                Pagar
+              </Button>
+            </div>
+          );
+        })
       )}
     </Space>
   );
@@ -281,7 +328,9 @@ export function BankMenuPanel({ currentPlayer, game, room }: BankMenuPanelProps)
       key: 'amount',
       width: 120,
       align: 'right',
-      render: (value) => formatMoney(value),
+      render: (value) => (
+        <Typography.Text className="bank-money--danger">{formatMoney(value)}</Typography.Text>
+      ),
     },
     {
       title: 'Acoes',
@@ -308,7 +357,9 @@ export function BankMenuPanel({ currentPlayer, game, room }: BankMenuPanelProps)
       key: 'amount',
       width: 120,
       align: 'right',
-      render: (value) => formatMoney(value),
+      render: (value) => (
+        <Typography.Text className="bank-money--success">{formatMoney(value)}</Typography.Text>
+      ),
     },
     {
       title: 'Acoes',
@@ -335,95 +386,243 @@ export function BankMenuPanel({ currentPlayer, game, room }: BankMenuPanelProps)
   const taxColumns: ColumnsType<TaxPending> = [
     {
       title: 'Titulo',
-      dataIndex: 'titleName',
       key: 'titleName',
       width: 190,
+      render: (_, tax) => getTaxTitleLabel(tax),
     },
     {
       title: 'Valor',
       dataIndex: 'amount',
       key: 'amount',
-      width: 140,
+      width: 170,
       align: 'right',
-      render: (_, tax) => (
-        <Space orientation="vertical" size={0} align="end">
-          <Typography.Text>{formatMoney(tax.amount)}</Typography.Text>
+      render: (_, tax) => {
+        const payableAmount = getTaxPendingPayableAmount(game, currentPlayer.id, tax);
+
+        return (
+          <Space orientation="vertical" size={0} align="end">
+            <Typography.Text className="bank-money--danger">
+              {formatMoney(tax.amount)}
+            </Typography.Text>
+            {isAtBank ? (
+              <Typography.Text type="secondary" className="bank-money--danger">
+                No Banco: {formatMoney(payableAmount)}
+              </Typography.Text>
+            ) : null}
+          </Space>
+        );
+      },
+    },
+    {
+      title: 'Aviso',
+      key: 'notice',
+      width: 220,
+      render: () =>
+        isAtBank ? (
           <Typography.Text type="secondary">
-            Agora: {formatMoney(tax.discountedAmount)}
+            Desconto disponivel individualmente na casa Banco.
           </Typography.Text>
-        </Space>
-      ),
+        ) : (
+          <Typography.Text type="secondary">Valor cheio fora do Banco.</Typography.Text>
+        ),
     },
     {
       title: 'Acoes',
       key: 'actions',
       width: 96,
       align: 'right',
-      render: (_, tax) => (
-        <Button
-          size="small"
-          onClick={() =>
-            confirmAction(
-              'Confirmar pagamento',
-              `Pagar imposto de ${formatMoney(tax.discountedAmount)} agora?`,
-              () => payTaxPending(room.id, currentPlayer.id, tax.id),
-              'Imposto pago.',
-            )
-          }
-        >
-          Pagar
-        </Button>
-      ),
+      render: (_, tax) => {
+        const payableAmount = getTaxPendingPayableAmount(game, currentPlayer.id, tax);
+
+        return (
+          <Button
+            size="small"
+            onClick={() =>
+              confirmAction(
+                'Confirmar pagamento',
+                `Pagar imposto de ${formatMoney(payableAmount)} agora?`,
+                () => payTaxPending(room.id, currentPlayer.id, tax.id),
+                'Imposto pago.',
+              )
+            }
+          >
+            Pagar
+          </Button>
+        );
+      },
     },
   ];
-  const pendingColumns: ColumnsType<RoundPending> = [
+  const renderMobileLoanOfferCards = () => (
+    <Space orientation="vertical" size={10} style={{ width: '100%' }}>
+      {receivedLoanOffers.length === 0 && sentLoanOffers.length === 0 ? (
+        <Empty description="Nenhuma proposta de emprestimo" />
+      ) : (
+        <>
+          {receivedLoanOffers.map((offer) => (
+            <div className="bank-list-card" key={offer.id}>
+              <Flex justify="space-between" gap={12} wrap>
+                <Space orientation="vertical" size={2}>
+                  <Typography.Text strong>
+                    {getPlayerName(players, offer.borrowerId)}
+                  </Typography.Text>
+                  <Typography.Text type="secondary">Solicitou emprestimo</Typography.Text>
+                </Space>
+                <Typography.Text strong>{formatMoney(offer.amount)}</Typography.Text>
+              </Flex>
+              <Flex gap={8} wrap>
+                <Button
+                  size="small"
+                  type="primary"
+                  onClick={() =>
+                    confirmAction(
+                      'Aceitar emprestimo',
+                      `Emprestar ${formatMoney(offer.amount)} para ${getPlayerName(players, offer.borrowerId)}?`,
+                      () => acceptPlayerLoanOffer(room.id, currentPlayer.id, offer.id),
+                      'Emprestimo aceito.',
+                    )
+                  }
+                >
+                  Aceitar
+                </Button>
+                <Button
+                  size="small"
+                  danger
+                  onClick={() =>
+                    confirmAction(
+                      'Recusar emprestimo',
+                      'Recusar esta proposta de emprestimo?',
+                      () => declinePlayerLoanOffer(room.id, currentPlayer.id, offer.id),
+                      'Proposta recusada.',
+                    )
+                  }
+                >
+                  Recusar
+                </Button>
+              </Flex>
+            </div>
+          ))}
+          {sentLoanOffers.map((offer) => (
+            <div className="bank-list-card" key={offer.id}>
+              <Flex justify="space-between" gap={12} wrap>
+                <Space orientation="vertical" size={2}>
+                  <Typography.Text strong>{getPlayerName(players, offer.lenderId)}</Typography.Text>
+                  <Typography.Text type="secondary">Aguardando resposta</Typography.Text>
+                </Space>
+                <Typography.Text strong>{formatMoney(offer.amount)}</Typography.Text>
+              </Flex>
+              <Button
+                size="small"
+                danger
+                block
+                onClick={() =>
+                  confirmAction(
+                    'Cancelar solicitacao',
+                    'Cancelar esta solicitacao de emprestimo?',
+                    () => declinePlayerLoanOffer(room.id, currentPlayer.id, offer.id),
+                    'Solicitacao cancelada.',
+                  )
+                }
+              >
+                Cancelar
+              </Button>
+            </div>
+          ))}
+        </>
+      )}
+    </Space>
+  );
+
+  const loanOfferColumns: ColumnsType<PlayerLoanOffer> = [
+    {
+      title: 'Jogador',
+      key: 'player',
+      render: (_, offer) =>
+        offer.lenderId === currentPlayer.id
+          ? getPlayerName(players, offer.borrowerId)
+          : getPlayerName(players, offer.lenderId),
+    },
     {
       title: 'Tipo',
-      dataIndex: 'kind',
-      key: 'kind',
-      width: 160,
-      render: (value) => pendingKindLabel(value),
+      key: 'type',
+      render: (_, offer) => (offer.lenderId === currentPlayer.id ? 'Recebida' : 'Enviada'),
     },
     {
       title: 'Valor',
       dataIndex: 'amount',
       key: 'amount',
-      width: 120,
       align: 'right',
       render: (value) => formatMoney(value),
     },
     {
       title: 'Acoes',
       key: 'actions',
-      width: 112,
       align: 'right',
-      render: (_, pending) => (
-        <Button
-          size="small"
-          onClick={() =>
-            confirmAction(
-              'Confirmar pendencia',
-              `Confirmar ${pendingKindLabel(pending.kind)} de ${formatMoney(pending.amount)}?`,
-              () => confirmRoundPending(room.id, currentPlayer.id, pending.id),
-              'Pendencia confirmada.',
-            )
-          }
-        >
-          Confirmar
-        </Button>
-      ),
+      render: (_, offer) =>
+        offer.lenderId === currentPlayer.id ? (
+          <Space size={6}>
+            <Button
+              size="small"
+              type="primary"
+              onClick={() =>
+                confirmAction(
+                  'Aceitar emprestimo',
+                  `Emprestar ${formatMoney(offer.amount)} para ${getPlayerName(players, offer.borrowerId)}?`,
+                  () => acceptPlayerLoanOffer(room.id, currentPlayer.id, offer.id),
+                  'Emprestimo aceito.',
+                )
+              }
+            >
+              Aceitar
+            </Button>
+            <Button
+              size="small"
+              danger
+              onClick={() =>
+                confirmAction(
+                  'Recusar emprestimo',
+                  'Recusar esta proposta de emprestimo?',
+                  () => declinePlayerLoanOffer(room.id, currentPlayer.id, offer.id),
+                  'Proposta recusada.',
+                )
+              }
+            >
+              Recusar
+            </Button>
+          </Space>
+        ) : (
+          <Button
+            size="small"
+            danger
+            onClick={() =>
+              confirmAction(
+                'Cancelar solicitacao',
+                'Cancelar esta solicitacao de emprestimo?',
+                () => declinePlayerLoanOffer(room.id, currentPlayer.id, offer.id),
+                'Solicitacao cancelada.',
+              )
+            }
+          >
+            Cancelar
+          </Button>
+        ),
     },
   ];
 
   return (
     <Space orientation="vertical" size={16} style={{ width: '100%' }}>
-      <Card className="bank-app-card bank-app-card--dark bank-menu-summary">
-        <Space orientation="vertical" size={14} style={{ width: '100%' }}>
-          <Flex align="center" justify="space-between" gap={12} wrap className="bank-app-card-header">
-            <Typography.Title level={4} style={{ margin: 0 }}>
+      <Card className="player-finance-card bank-menu-summary">
+        <Space orientation="vertical" size={16} style={{ width: '100%' }}>
+          <Flex
+            align="center"
+            justify="space-between"
+            gap={12}
+            wrap
+            className="bank-app-card-header"
+          >
+            <Typography.Title level={4} className="player-finance-card__title">
               Banco
             </Typography.Title>
-            <Tag color={score <= BANK_LOAN_MIN_SCORE ? 'red' : 'green'}>
+            <Tag color={score <= 0 ? 'red' : score <= 10 ? 'orange' : 'green'}>
               {score} - {getBankScoreLabel(score)}
             </Tag>
           </Flex>
@@ -443,137 +642,235 @@ export function BankMenuPanel({ currentPlayer, game, room }: BankMenuPanelProps)
               />
             </Col>
           </Row>
+          <Row gutter={[10, 10]}>
+            <Col xs={12}>
+              <div className="player-finance-card__metric bank-page-metric">
+                <BankOutlined />
+                <Typography.Text className="player-finance-card__metric-label">
+                  Dividas ativas
+                </Typography.Text>
+                <Typography.Text className="player-finance-card__metric-value">
+                  {formatMoney(activeDebtTotal)}
+                </Typography.Text>
+              </div>
+            </Col>
+            <Col xs={12}>
+              <div className="player-finance-card__metric bank-page-metric">
+                <SafetyCertificateOutlined />
+                <Typography.Text className="player-finance-card__metric-label">
+                  Dividas a receber
+                </Typography.Text>
+                <Typography.Text className="player-finance-card__metric-value">
+                  {formatMoney(calculateReceivableTotal(finance))}
+                </Typography.Text>
+              </div>
+            </Col>
+            <Col xs={12}>
+              <div className="player-finance-card__metric bank-page-metric">
+                <DollarOutlined />
+                <Typography.Text className="player-finance-card__metric-label">
+                  Impostos pendentes
+                </Typography.Text>
+                <Typography.Text className="player-finance-card__metric-value">
+                  {formatMoney(pendingTaxTotal)}
+                </Typography.Text>
+              </div>
+            </Col>
+            <Col xs={12}>
+              <div className="player-finance-card__metric bank-page-metric">
+                <SwapOutlined />
+                <Typography.Text className="player-finance-card__metric-label">
+                  Emprestimos ativos
+                </Typography.Text>
+                <Typography.Text className="player-finance-card__metric-value">
+                  {activeLoanCount}
+                </Typography.Text>
+              </div>
+            </Col>
+          </Row>
         </Space>
       </Card>
 
-      <Row gutter={[12, 12]}>
-        <Col xs={12} md={6}>
-          <Card className="bank-app-card">
-            <Statistic
-              title="Receber por rodada"
-              value={calculatePlayerRoundIncome(game, currentPlayer.id)}
-              prefix={<LineChartOutlined />}
-              formatter={(value) => formatMoney(Number(value))}
-            />
-          </Card>
-        </Col>
-        <Col xs={12} md={6}>
-          <Card className="bank-app-card">
-            <Statistic
-              title="Pagar por rodada"
-              value={calculatePlayerRoundExpenses(game, currentPlayer.id)}
-              prefix={<DollarOutlined />}
-              formatter={(value) => formatMoney(Number(value))}
-            />
-          </Card>
-        </Col>
-        <Col xs={12} md={6}>
-          <Card className="bank-app-card">
-            <Statistic
-              title="Dividas"
-              value={activeDebtTotal}
-              prefix={<BankOutlined />}
-              formatter={(value) => formatMoney(Number(value))}
-            />
-          </Card>
-        </Col>
-        <Col xs={12} md={6}>
-          <Card className="bank-app-card">
-            <Statistic
-              title="A receber"
-              value={calculateReceivableTotal(finance)}
-              prefix={<SafetyCertificateOutlined />}
-              formatter={(value) => formatMoney(Number(value))}
-            />
-          </Card>
-        </Col>
-      </Row>
+      <Collapse
+        className="bank-app-card bank-loan-collapse"
+        items={[
+          {
+            key: 'bank-loan',
+            label: 'Emprestimo do Banco',
+            children: (
+              <Space orientation="vertical" size={14} style={{ width: '100%' }}>
+                <div className="bank-loan-info">
+                  <Flex justify="space-between" gap={12}>
+                    <Typography.Text type="secondary">Limite total</Typography.Text>
+                    <Typography.Text strong>{formatMoney(creditLimit)}</Typography.Text>
+                  </Flex>
+                  <Flex justify="space-between" gap={12}>
+                    <Typography.Text type="secondary">Limite disponivel</Typography.Text>
+                    <Typography.Text strong>{formatMoney(availableCredit)}</Typography.Text>
+                  </Flex>
+                  <Flex justify="space-between" gap={12}>
+                    <Typography.Text type="secondary">Dividas ativas</Typography.Text>
+                    <Typography.Text strong>{formatMoney(activeDebtTotal)}</Typography.Text>
+                  </Flex>
+                  <Flex justify="space-between" gap={12}>
+                    <Typography.Text type="secondary">Taxa de juros</Typography.Text>
+                    <Typography.Text strong>{interestPercent}%</Typography.Text>
+                  </Flex>
+                  <Flex justify="space-between" gap={12}>
+                    <Typography.Text type="secondary">Total a pagar</Typography.Text>
+                    <Typography.Text strong>{formatMoney(loanDebtTotal)}</Typography.Text>
+                  </Flex>
+                </div>
+                {isProjectedPreBankruptcy ? (
+                  <Alert
+                    type="warning"
+                    showIcon
+                    message={`Este emprestimo levara o jogador a pre-falencia: score ${projectedScore}.`}
+                  />
+                ) : null}
+                {isProjectedBankruptcy ? (
+                  <Alert
+                    type="error"
+                    showIcon
+                    message="Emprestimo bloqueado: este valor levaria o jogador a falencia."
+                  />
+                ) : null}
+                <Form
+                  form={loanForm}
+                  layout="vertical"
+                  onFinish={(values) =>
+                    confirmAction(
+                      'Confirmar emprestimo',
+                      `Contratar emprestimo de ${formatMoney(values.amount)} com total a pagar de ${formatMoney(
+                        calculateLoanDebtAmount(values.amount),
+                      )}?`,
+                      () => requestBankLoan(room.id, currentPlayer.id, values.amount),
+                      'Emprestimo contratado.',
+                    )
+                  }
+                >
+                  <Flex align="flex-end" gap={8} wrap>
+                    <Form.Item
+                      name="amount"
+                      label="Valor desejado"
+                      rules={[{ required: true, message: 'Informe o valor.' }]}
+                      style={{ flex: '1 1 180px', marginBottom: 0 }}
+                    >
+                      <InputNumber
+                        min={1}
+                        precision={0}
+                        addonBefore="R$"
+                        style={{ width: '100%' }}
+                      />
+                    </Form.Item>
+                    <Button
+                      type="primary"
+                      htmlType="submit"
+                      disabled={isProjectedBankruptcy}
+                      loading={loadingAction}
+                      className="bank-loan-submit"
+                    >
+                      Solicitar
+                    </Button>
+                  </Flex>
+                </Form>
+              </Space>
+            ),
+          },
+        ]}
+      />
 
-      <Card className="bank-app-card">
-        <Space orientation="vertical" size={14} style={{ width: '100%' }}>
-          <Typography.Title level={5} style={{ margin: 0 }}>
-            Emprestimo do Banco
-          </Typography.Title>
-          <div className="bank-loan-info">
-            <Flex justify="space-between" gap={12}>
-              <Typography.Text type="secondary">Limite total</Typography.Text>
-              <Typography.Text strong>{formatMoney(creditLimit)}</Typography.Text>
-            </Flex>
-            <Flex justify="space-between" gap={12}>
-              <Typography.Text type="secondary">Limite disponivel</Typography.Text>
-              <Typography.Text strong>{formatMoney(availableCredit)}</Typography.Text>
-            </Flex>
-            <Flex justify="space-between" gap={12}>
-              <Typography.Text type="secondary">Dividas ativas</Typography.Text>
-              <Typography.Text strong>{formatMoney(activeDebtTotal)}</Typography.Text>
-            </Flex>
-            <Flex justify="space-between" gap={12}>
-              <Typography.Text type="secondary">Taxa de juros</Typography.Text>
-              <Typography.Text strong>{interestPercent}%</Typography.Text>
-            </Flex>
-            <Flex justify="space-between" gap={12}>
-              <Typography.Text type="secondary">Total a pagar</Typography.Text>
-              <Typography.Text strong>{formatMoney(loanDebtTotal)}</Typography.Text>
-            </Flex>
-          </div>
-          <Form
-            form={loanForm}
-            layout="vertical"
-            onFinish={(values) =>
-              confirmAction(
-                'Confirmar emprestimo',
-                `Contratar emprestimo de ${formatMoney(values.amount)} com total a pagar de ${formatMoney(
-                  Math.round(values.amount * (1 + BANK_LOAN_INTEREST_RATE)),
-                )}?`,
-                () => requestBankLoan(room.id, currentPlayer.id, values.amount),
-                'Emprestimo contratado.',
-              )
-            }
-          >
-            <Flex align="flex-end" gap={8} wrap>
-              <Form.Item
-                name="amount"
-                label="Valor desejado"
-                rules={[{ required: true, message: 'Informe o valor.' }]}
-                style={{ flex: '1 1 180px', marginBottom: 0 }}
-              >
-                <InputNumber
-                  min={1}
-                  max={availableCredit}
-                  precision={0}
-                  addonBefore="R$"
-                  style={{ width: '100%' }}
-                  disabled={score <= BANK_LOAN_MIN_SCORE}
-                />
-              </Form.Item>
-              <Button
-                type="primary"
-                htmlType="submit"
-                disabled={score <= BANK_LOAN_MIN_SCORE || availableCredit <= 0}
-                loading={loadingAction}
-                className="bank-loan-submit"
-              >
-                Solicitar
-              </Button>
-            </Flex>
-          </Form>
-        </Space>
-      </Card>
-
-      <Card title="Pendencias de volta" className="bank-app-card">
-        {screens.md ? (
-          <Table
-            rowKey="id"
-            size="small"
-            pagination={false}
-            columns={pendingColumns}
-            dataSource={roundPendings}
-            locale={{ emptyText: <Empty description="Nenhuma pendencia" /> }}
-          />
-        ) : (
-          renderMobilePendingCards()
-        )}
-      </Card>
+      <Collapse
+        className="bank-app-card bank-loan-collapse"
+        items={[
+          {
+            key: 'player-loan',
+            label: 'Emprestimo entre jogadores',
+            children: (
+              <Space orientation="vertical" size={14} style={{ width: '100%' }}>
+                {isPlayerLoanPreBankruptcy ? (
+                  <Alert
+                    type="warning"
+                    showIcon
+                    message={`Este emprestimo levara o jogador a pre-falencia: score ${playerLoanProjectedScore}.`}
+                  />
+                ) : null}
+                {isPlayerLoanBankruptcy ? (
+                  <Alert
+                    type="error"
+                    showIcon
+                    message="Emprestimo bloqueado: este valor levaria o jogador a falencia."
+                  />
+                ) : null}
+                <Form
+                  form={playerLoanForm}
+                  layout="vertical"
+                  onFinish={(values) =>
+                    confirmAction(
+                      'Solicitar emprestimo',
+                      `Solicitar ${formatMoney(values.amount)} a ${getPlayerName(players, values.lenderId)}?`,
+                      () =>
+                        createPlayerLoanOffer(
+                          room.id,
+                          currentPlayer.id,
+                          values.lenderId,
+                          values.amount,
+                        ),
+                      'Solicitacao enviada.',
+                    )
+                  }
+                >
+                  <Flex align="flex-end" gap={8} wrap>
+                    <Form.Item
+                      name="lenderId"
+                      label="Jogador"
+                      rules={[{ required: true, message: 'Selecione o jogador.' }]}
+                      style={{ flex: '1 1 180px', marginBottom: 0 }}
+                    >
+                      <Select placeholder="Selecione" options={loanLenderOptions} />
+                    </Form.Item>
+                    <Form.Item
+                      name="amount"
+                      label="Valor"
+                      rules={[{ required: true, message: 'Informe o valor.' }]}
+                      style={{ flex: '1 1 150px', marginBottom: 0 }}
+                    >
+                      <InputNumber
+                        min={1}
+                        precision={0}
+                        addonBefore="R$"
+                        style={{ width: '100%' }}
+                      />
+                    </Form.Item>
+                    <Button
+                      type="primary"
+                      htmlType="submit"
+                      icon={<SwapOutlined />}
+                      disabled={isPlayerLoanBankruptcy}
+                      loading={loadingAction}
+                      className="bank-loan-submit"
+                    >
+                      Solicitar
+                    </Button>
+                  </Flex>
+                </Form>
+                {screens.md ? (
+                  <Table
+                    rowKey="id"
+                    size="small"
+                    pagination={false}
+                    columns={loanOfferColumns}
+                    dataSource={[...receivedLoanOffers, ...sentLoanOffers]}
+                    locale={{ emptyText: <Empty description="Nenhuma proposta de emprestimo" /> }}
+                  />
+                ) : (
+                  renderMobileLoanOfferCards()
+                )}
+              </Space>
+            ),
+          },
+        ]}
+      />
 
       <Card title="Dividas ativas" className="bank-app-card">
         {screens.md ? (
@@ -616,6 +913,55 @@ export function BankMenuPanel({ currentPlayer, game, room }: BankMenuPanelProps)
           renderMobileTaxCards()
         )}
       </Card>
+
+      <Modal
+        title="Prestacao de contas"
+        open={Boolean(statementPending)}
+        okText="Confirmar"
+        cancelButtonProps={{ style: { display: 'none' } }}
+        closable={false}
+        maskClosable={false}
+        confirmLoading={loadingAction}
+        onOk={() => {
+          if (!statementPending) return;
+          void runAction(
+            () => confirmRoundPending(room.id, currentPlayer.id, statementPending.id),
+            'Prestacao de contas confirmada.',
+          );
+        }}
+      >
+        <Space orientation="vertical" size={10} style={{ width: '100%' }}>
+          <Flex justify="space-between" gap={12}>
+            <Typography.Text type="secondary">Recebiveis</Typography.Text>
+            <Typography.Text strong className="bank-money--success">
+              {formatMoney(statementBreakdown.receivables)}
+            </Typography.Text>
+          </Flex>
+          <Flex justify="space-between" gap={12}>
+            <Typography.Text type="secondary">Manutencao</Typography.Text>
+            <Typography.Text strong className="bank-money--danger">
+              {formatMoney(statementBreakdown.maintenance)}
+            </Typography.Text>
+          </Flex>
+          <Flex justify="space-between" gap={12}>
+            <Typography.Text type="secondary">Impostos</Typography.Text>
+            <Typography.Text strong className="bank-money--danger">
+              {formatMoney(statementBreakdown.taxes)}
+            </Typography.Text>
+          </Flex>
+          <div className="bank-statement-total">
+            <Typography.Text type="secondary">Valor final</Typography.Text>
+            <Typography.Text
+              strong
+              className={
+                statementBreakdown.netAmount >= 0 ? 'bank-money--success' : 'bank-money--danger'
+              }
+            >
+              {formatMoney(statementBreakdown.netAmount)}
+            </Typography.Text>
+          </div>
+        </Space>
+      </Modal>
 
       <Modal
         title="Pagar divida"

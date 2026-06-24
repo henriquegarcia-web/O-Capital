@@ -86,7 +86,12 @@ export function GamePlayersPage() {
     ) : menuKey === 'banqueiro' ? (
       <BankerMatchControlCard room={room} players={players} />
     ) : menuKey === 'banco' ? (
-      <BankMenuPanel room={room} game={hydratedGame} currentPlayer={currentPlayer} />
+      <BankMenuPanel
+        room={room}
+        game={hydratedGame}
+        players={players}
+        currentPlayer={currentPlayer}
+      />
     ) : menuKey === 'titulos' ? (
       <TitlesMenuPanel
         room={room}

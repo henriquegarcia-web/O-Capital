@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { rollPlayerDice } from '@/api';
 import type { GameState, Player, Room } from '@/types';
-import { formatDiceRoll, hydrateGameState } from '@/utils';
+import { hydrateGameState } from '@/utils';
 
 import { DiceRollOverlay } from '../DiceRollOverlay';
 
@@ -38,10 +38,7 @@ export function MatchControlCard({ currentPlayer, players, room }: MatchControlC
   const [diceResult, setDiceResult] = useState<DiceResult | null>(null);
   const timeoutsRef = useRef<number[]>([]);
   const game = useMemo<GameState>(() => hydrateGameState(room.game, players), [players, room.game]);
-  const turnPlayer = players.find((player) => player.id === game.turnPlayerId);
-  const lastRollPlayer = players.find((player) => player.id === game.lastRoll?.playerId);
   const isCurrentTurn = game.status === 'playing' && game.turnPlayerId === currentPlayer.id;
-  const currentPlayerLastRoll = game.playerLastRolls?.[currentPlayer.id];
 
   useEffect(() => {
     return () => {
@@ -75,7 +72,9 @@ export function MatchControlCard({ currentPlayer, players, room }: MatchControlC
             message.success('Jogada contabilizada.');
           })
           .catch((error) => {
-            message.error(error instanceof Error ? error.message : 'Nao foi possivel girar os dados.');
+            message.error(
+              error instanceof Error ? error.message : 'Nao foi possivel girar os dados.',
+            );
           })
           .finally(() => {
             clearRollTimers();
@@ -107,23 +106,6 @@ export function MatchControlCard({ currentPlayer, players, room }: MatchControlC
               </Tag>
             </Descriptions.Item>
             <Descriptions.Item label="Rodada">{game.round}</Descriptions.Item>
-            <Descriptions.Item label="Vez atual">
-              {turnPlayer?.name ?? 'Aguardando jogadores'}
-            </Descriptions.Item>
-            <Descriptions.Item label="Ultimo a jogar">
-              {game.lastRoll && lastRollPlayer ? (
-                `${lastRollPlayer.name} (${game.lastRoll.total})`
-              ) : (
-                <Tag color="default">Nao iniciado</Tag>
-              )}
-            </Descriptions.Item>
-            <Descriptions.Item label="Sua ultima jogada">
-              {currentPlayerLastRoll ? (
-                `(${formatDiceRoll(currentPlayerLastRoll)})`
-              ) : (
-                <Tag color="default">Nao iniciado</Tag>
-              )}
-            </Descriptions.Item>
           </Descriptions>
 
           <Button

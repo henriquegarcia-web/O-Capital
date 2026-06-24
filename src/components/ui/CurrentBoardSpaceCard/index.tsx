@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import {
   BuildOutlined,
+  DeleteOutlined,
   HomeOutlined,
   ShopOutlined,
   ShoppingCartOutlined,
@@ -19,10 +20,10 @@ import {
   Typography,
 } from 'antd';
 
-import { buildTitleProperty, buyTitle } from '@/api';
+import { buildTitleProperty, buyTitle, destroyTitleProperty } from '@/api';
 import { BOARD_SPACES_BY_INDEX, NEIGHBORHOODS, PROPERTY_BLUEPRINTS } from '@/constants';
-import type { GameState, Player, PropertyBlueprint } from '@/types';
-import { formatMoney, getNextRealEstateBlueprint } from '@/utils';
+import type { GameState, Player } from '@/types';
+import { formatMoney, getAvailableBlueprintsForPropertySlot, getTitlePropertySlots } from '@/utils';
 
 type CurrentBoardSpaceCardProps = {
   roomId: string;
@@ -32,17 +33,12 @@ type CurrentBoardSpaceCardProps = {
 };
 
 type PropertyFormValues = {
+  slotIndex: number;
   blueprintKey: string;
   optionName?: string;
 };
 
 const EMPTY_PROPERTIES: NonNullable<GameState['titles'][string]['properties']> = [];
-const REAL_ESTATE_BLUEPRINTS = PROPERTY_BLUEPRINTS.filter(
-  (blueprint) => blueprint.category === 'real-estate',
-);
-const BUSINESS_BLUEPRINTS = PROPERTY_BLUEPRINTS.filter(
-  (blueprint) => blueprint.category === 'business',
-);
 
 function getOwnerName(ownerId: string | null | undefined, players: Player[]) {
   if (!ownerId) {
@@ -54,19 +50,6 @@ function getOwnerName(ownerId: string | null | undefined, players: Player[]) {
 
 function getBlueprint(blueprintKey: string) {
   return PROPERTY_BLUEPRINTS.find((blueprint) => blueprint.key === blueprintKey);
-}
-
-function getAvailableBlueprints(
-  properties = [] as NonNullable<GameState['titles'][string]['properties']>,
-) {
-  const nextRealEstateBlueprint = getNextRealEstateBlueprint(properties);
-  const businessBlueprints = PROPERTY_BLUEPRINTS.filter(
-    (blueprint) => blueprint.category === 'business',
-  );
-
-  return [nextRealEstateBlueprint, ...businessBlueprints].filter(
-    (blueprint): blueprint is PropertyBlueprint => Boolean(blueprint),
-  );
 }
 
 export function CurrentBoardSpaceCard({
@@ -81,6 +64,7 @@ export function CurrentBoardSpaceCard({
   const [buying, setBuying] = useState(false);
   const [buildModalOpen, setBuildModalOpen] = useState(false);
   const [selectedBlueprintKey, setSelectedBlueprintKey] = useState<string>();
+  const selectedSlotIndex = Form.useWatch('slotIndex', form);
   const position = game.positions[currentPlayer.id] ?? 1;
   const boardSpace = BOARD_SPACES_BY_INDEX[position] ?? BOARD_SPACES_BY_INDEX[1];
   const title = game.titles?.[String(boardSpace.index)];
@@ -92,7 +76,20 @@ export function CurrentBoardSpaceCard({
   const landValue = boardSpace.landValue ?? 0;
   const properties = title?.properties ?? EMPTY_PROPERTIES;
   const propertySlots = boardSpace.propertySlots ?? 3;
-  const availableBlueprints = useMemo(() => getAvailableBlueprints(properties), [properties]);
+  const propertySlotItems = useMemo(
+    () => getTitlePropertySlots(properties, propertySlots),
+    [properties, propertySlots],
+  );
+  const selectedSlotProperty =
+    typeof selectedSlotIndex === 'number' ? propertySlotItems[selectedSlotIndex] : null;
+  const availableBlueprints = useMemo(
+    () => getAvailableBlueprintsForPropertySlot(selectedSlotProperty),
+    [selectedSlotProperty],
+  );
+  const hasAvailableBuildSlot = propertySlotItems.some(
+    (property) => getAvailableBlueprintsForPropertySlot(property).length > 0,
+  );
+  const propertyActionRound = title?.lastPropertyActionRound ?? title?.lastPropertyPurchaseRound;
   const selectedBlueprint = selectedBlueprintKey ? getBlueprint(selectedBlueprintKey) : undefined;
   const neighborhoodName =
     NEIGHBORHOODS.find((neighborhood) => neighborhood.key === boardSpace.neighborhoodKey)?.name ??
@@ -111,12 +108,10 @@ export function CurrentBoardSpaceCard({
     ? 'Apenas o dono pode construir.'
     : title?.acquiredAtRound === game.round
       ? 'Construcao disponivel apenas a partir da proxima rodada.'
-    : properties.length >= propertySlots
-      ? 'Limite de propriedades atingido.'
-      : title?.lastPropertyPurchaseRound === game.round
-        ? 'Ja houve construcao neste titulo nesta rodada.'
-        : availableBlueprints.length === 0
-          ? 'Sem propriedades disponiveis para este titulo.'
+      : propertyActionRound === game.round
+        ? 'Ja houve construcao ou destruicao neste titulo nesta rodada.'
+        : !hasAvailableBuildSlot
+          ? 'Sem terrenos disponiveis para construcao ou evolucao.'
           : null;
   const status = isStreet
     ? ownerName
@@ -124,8 +119,29 @@ export function CurrentBoardSpaceCard({
       : 'Disponivel para compra'
     : 'Casa especial estruturada para logica futura';
 
-  function hasProperty(blueprintKey: string) {
-    return properties.some((property) => property.blueprintKey === blueprintKey);
+  function getSlotLabel(slotIndex: number) {
+    const property = propertySlotItems[slotIndex];
+    const blueprint = property ? getBlueprint(property.blueprintKey) : undefined;
+
+    if (!property || !blueprint) {
+      return `Terreno ${slotIndex + 1} - vazio`;
+    }
+
+    return `Terreno ${slotIndex + 1} - ${property.optionName ?? blueprint.name}`;
+  }
+
+  function openBuildModal() {
+    const firstAvailableSlotIndex = propertySlotItems.findIndex(
+      (property) => getAvailableBlueprintsForPropertySlot(property).length > 0,
+    );
+
+    form.setFieldsValue({
+      slotIndex: firstAvailableSlotIndex >= 0 ? firstAvailableSlotIndex : 0,
+      blueprintKey: undefined,
+      optionName: undefined,
+    });
+    setSelectedBlueprintKey(undefined);
+    setBuildModalOpen(true);
   }
 
   async function handleBuyTitle() {
@@ -169,6 +185,7 @@ export function CurrentBoardSpaceCard({
             currentPlayer.id,
             boardSpace.index,
             values.blueprintKey,
+            values.slotIndex,
             values.optionName,
           );
           message.success('Propriedade construida com sucesso.');
@@ -181,6 +198,30 @@ export function CurrentBoardSpaceCard({
           );
         } finally {
           setBuilding(false);
+        }
+      },
+    });
+  }
+
+  async function handleDestroyProperty(propertyId: string) {
+    const property = properties.find((item) => item.id === propertyId);
+    const blueprint = property ? getBlueprint(property.blueprintKey) : undefined;
+    const propertyLabel = property?.optionName ?? blueprint?.name ?? 'propriedade';
+
+    modal.confirm({
+      title: 'Confirmar destruicao',
+      content: `Destruir ${propertyLabel} em ${boardSpace.name}?`,
+      okText: 'Destruir',
+      okButtonProps: { danger: true },
+      cancelText: 'Cancelar',
+      async onOk() {
+        try {
+          await destroyTitleProperty(roomId, currentPlayer.id, boardSpace.index, propertyId);
+          message.success('Propriedade destruida com sucesso.');
+        } catch (error) {
+          message.error(
+            error instanceof Error ? error.message : 'Nao foi possivel destruir a propriedade.',
+          );
         }
       },
     });
@@ -231,43 +272,52 @@ export function CurrentBoardSpaceCard({
 
           {isStreet && title?.ownerId ? (
             <Space orientation="vertical" size={8} style={{ width: '100%' }}>
-              <Flex gap={8} align="center" wrap>
-                {REAL_ESTATE_BLUEPRINTS.map((blueprint) => (
-                  <Tooltip key={blueprint.key} title={blueprint.name}>
-                    <span
-                      className={
-                        hasProperty(blueprint.key)
-                          ? 'board-space-property-icon board-space-property-icon--active'
-                          : 'board-space-property-icon'
-                      }
-                    >
-                      <HomeOutlined />
-                    </span>
-                  </Tooltip>
-                ))}
-              </Flex>
-              <Flex gap={8} align="center" wrap>
-                {BUSINESS_BLUEPRINTS.map((blueprint) => {
-                  const builtProperty = properties.find(
-                    (property) => property.blueprintKey === blueprint.key,
-                  );
-                  const iconTitle = builtProperty?.optionName ?? blueprint.name;
+              {propertySlotItems.map((property, slotIndex) => {
+                const blueprint = property ? getBlueprint(property.blueprintKey) : undefined;
+                const propertyLabel = property?.optionName ?? blueprint?.name ?? 'Terreno vazio';
+                const canDestroy =
+                  isOwner &&
+                  property &&
+                  title.acquiredAtRound !== game.round &&
+                  propertyActionRound !== game.round;
 
-                  return (
-                    <Tooltip key={blueprint.key} title={iconTitle}>
+                return (
+                  <Flex
+                    key={property?.id ?? slotIndex}
+                    align="center"
+                    justify="space-between"
+                    gap={8}
+                    className="board-space-property-slot"
+                  >
+                    <Flex align="center" gap={8} className="board-space-property-slot__content">
                       <span
                         className={
-                          builtProperty
+                          property
                             ? 'board-space-property-icon board-space-property-icon--active'
                             : 'board-space-property-icon'
                         }
                       >
-                        <ShopOutlined />
+                        {blueprint?.category === 'business' ? <ShopOutlined /> : <HomeOutlined />}
                       </span>
-                    </Tooltip>
-                  );
-                })}
-              </Flex>
+                      <Space orientation="vertical" size={0}>
+                        <Typography.Text strong>{`Terreno ${slotIndex + 1}`}</Typography.Text>
+                        <Typography.Text type="secondary">{propertyLabel}</Typography.Text>
+                      </Space>
+                    </Flex>
+                    {property ? (
+                      <Tooltip title="Destruir propriedade">
+                        <Button
+                          danger
+                          size="small"
+                          icon={<DeleteOutlined />}
+                          disabled={!canDestroy}
+                          onClick={() => handleDestroyProperty(property.id)}
+                        />
+                      </Tooltip>
+                    ) : null}
+                  </Flex>
+                );
+              })}
             </Space>
           ) : null}
 
@@ -289,9 +339,10 @@ export function CurrentBoardSpaceCard({
               {isOwner ? (
                 <Button
                   block
+                  type="primary"
                   icon={<BuildOutlined />}
                   disabled={Boolean(buildBlockReason)}
-                  onClick={() => setBuildModalOpen(true)}
+                  onClick={openBuildModal}
                 >
                   Construir propriedade
                 </Button>
@@ -323,6 +374,26 @@ export function CurrentBoardSpaceCard({
         onOk={() => form.submit()}
       >
         <Form form={form} layout="vertical" onFinish={handleBuildProperty}>
+          <Form.Item
+            name="slotIndex"
+            label="Terreno"
+            rules={[{ required: true, message: 'Selecione um terreno.' }]}
+          >
+            <Select
+              placeholder="Selecione"
+              onChange={() => {
+                setSelectedBlueprintKey(undefined);
+                form.setFieldValue('blueprintKey', undefined);
+                form.setFieldValue('optionName', undefined);
+              }}
+              options={propertySlotItems.map((property, slotIndex) => ({
+                value: slotIndex,
+                label: getSlotLabel(slotIndex),
+                disabled: getAvailableBlueprintsForPropertySlot(property).length === 0,
+              }))}
+            />
+          </Form.Item>
+
           <Form.Item
             name="blueprintKey"
             label="Propriedade"

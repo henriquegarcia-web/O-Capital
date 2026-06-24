@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { App, Button, Card, Flex, Form, Space, Typography } from 'antd';
+import { Button, Card, Flex, Form, Space, Typography } from 'antd';
 import { useForm } from 'react-hook-form';
 
 import {
@@ -23,7 +23,6 @@ export function PlayerJoinCard({
   loading,
   onJoin,
 }: PlayerJoinCardProps) {
-  const { modal } = App.useApp();
   const {
     control,
     formState: { isValid },
@@ -39,20 +38,12 @@ export function PlayerJoinCard({
     resolver: zodResolver(createPlayerSchema),
   });
 
-  const handleJoin = handleSubmit((values) => {
-    modal.confirm({
-      title: 'Entrar na sala?',
-      content: `Criar o jogador "${values.name}" e entrar na sala?`,
-      okText: 'Entrar',
-      cancelText: 'Cancelar',
-      async onOk() {
-        await onJoin(values);
-        reset({
-          name: '',
-          photoKey: PROFILE_PHOTOS[0]?.key,
-          colorKey: PROFILE_COLORS.find((color) => !disabledColorKeys.includes(color.key))?.key,
-        });
-      },
+  const handleJoin = handleSubmit(async (values) => {
+    await onJoin(values);
+    reset({
+      name: '',
+      photoKey: PROFILE_PHOTOS[0]?.key,
+      colorKey: PROFILE_COLORS.find((color) => !disabledColorKeys.includes(color.key))?.key,
     });
   });
 

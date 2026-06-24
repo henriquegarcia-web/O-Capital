@@ -1,20 +1,8 @@
-import {
-  BankOutlined,
-  HomeOutlined,
-  LineChartOutlined,
-  SwapOutlined,
-  WalletOutlined,
-} from '@ant-design/icons';
+import { LineChartOutlined, WalletOutlined } from '@ant-design/icons';
 import { Card, Col, Row, Space, Typography } from 'antd';
 
 import type { GameState, Player } from '@/types';
-import {
-  calculateActiveDebtTotal,
-  calculatePlayerNetWorth,
-  calculatePlayerPropertyCount,
-  calculateReceivableTotal,
-  formatMoney,
-} from '@/utils';
+import { calculatePlayerNetWorth, formatMoney } from '@/utils';
 
 type PlayerFinanceCardProps = {
   game: GameState;
@@ -24,9 +12,6 @@ type PlayerFinanceCardProps = {
 const metrics = [
   { key: 'balance', label: 'Saldo atual', icon: WalletOutlined },
   { key: 'netWorth', label: 'Valor de patrimonio', icon: LineChartOutlined },
-  { key: 'debts', label: 'Dividas ativas', icon: BankOutlined },
-  { key: 'receivables', label: 'Dividas a receber', icon: SwapOutlined },
-  { key: 'properties', label: 'Propriedades', icon: HomeOutlined },
 ] as const;
 
 export function PlayerFinanceCard({ currentPlayer, game }: PlayerFinanceCardProps) {
@@ -34,9 +19,6 @@ export function PlayerFinanceCard({ currentPlayer, game }: PlayerFinanceCardProp
   const values = {
     balance: formatMoney(finance?.balance ?? 0),
     netWorth: formatMoney(calculatePlayerNetWorth(game, currentPlayer.id)),
-    debts: formatMoney(calculateActiveDebtTotal(finance)),
-    receivables: formatMoney(calculateReceivableTotal(finance)),
-    properties: String(calculatePlayerPropertyCount(game, currentPlayer.id)),
   };
 
   return (
@@ -51,7 +33,7 @@ export function PlayerFinanceCard({ currentPlayer, game }: PlayerFinanceCardProp
             const Icon = metric.icon;
 
             return (
-              <Col key={metric.key} xs={12} sm={8} md={6} lg={4}>
+              <Col key={metric.key} xs={12}>
                 <div className="player-finance-card__metric">
                   <Icon />
                   <Typography.Text className="player-finance-card__metric-label">

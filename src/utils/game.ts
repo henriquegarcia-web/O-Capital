@@ -102,6 +102,7 @@ export function getInitialGameState(players: Player[], now = Date.now()): GameSt
     roundPendings: {},
     titleSaleOffers: {},
     titleAuctions: {},
+    playerLoanOffers: {},
     updatedAt: now,
   };
 }
@@ -142,6 +143,7 @@ export function hydrateGameState(game: GameState | undefined, players: Player[])
     roundPendings: baseGame.roundPendings ?? {},
     titleSaleOffers: baseGame.titleSaleOffers ?? {},
     titleAuctions: baseGame.titleAuctions ?? {},
+    playerLoanOffers: baseGame.playerLoanOffers ?? {},
     turnPlayerId,
   };
 }
@@ -230,39 +232,46 @@ export function calculateReceivableTotal(finance?: PlayerFinance) {
 }
 
 export function calculatePlayerRoundIncome(game: GameState, playerId: string) {
-  return getPlayerTitles(game, playerId).reduce((total, title) => {
-    const income = (title.properties ?? []).reduce((subtotal, property) => {
-      const blueprint = PROPERTY_BLUEPRINTS.find((item) => item.key === property.blueprintKey);
+  return getPlayerTitles(game, playerId).reduce(
+    (total, title) => total + calculateTitleReceivables(title),
+    0,
+  );
+}
 
-      return subtotal + (blueprint?.dividendsPerRound ?? 0);
-    }, 0);
+export function calculateTitleReceivables(title: TitleOwnership) {
+  return (title.properties ?? []).reduce((total, property) => {
+    const blueprint = PROPERTY_BLUEPRINTS.find((item) => item.key === property.blueprintKey);
 
-    return total + income;
+    return total + (blueprint?.dividendsPerRound ?? 0);
   }, 0);
 }
 
-export function calculatePlayerRoundExpenses(
-  game: GameState,
-  playerId: string,
-  round = game.round,
-) {
-  return getPlayerTitles(game, playerId).reduce((total, title) => {
-    const maintenance = (title.properties ?? []).reduce((subtotal, property) => {
-      const blueprint = PROPERTY_BLUEPRINTS.find((item) => item.key === property.blueprintKey);
+export function calculateTitleRent(title: TitleOwnership) {
+  return (title.properties ?? []).reduce((total, property) => {
+    const blueprint = PROPERTY_BLUEPRINTS.find((item) => item.key === property.blueprintKey);
 
-      if (!blueprint || round <= property.acquiredAtRound) {
-        return subtotal;
-      }
-
-      const due =
-        blueprint.maintenanceIntervalRounds > 0 &&
-        (round - property.acquiredAtRound) % blueprint.maintenanceIntervalRounds === 0;
-
-      return subtotal + (due ? blueprint.maintenanceCost : 0);
-    }, 0);
-
-    return total + maintenance;
+    return total + (blueprint?.category === 'real-estate' ? (blueprint.rent ?? 0) : 0);
   }, 0);
+}
+
+export function calculatePlayerRentIncome(game: GameState, playerId: string) {
+  return getPlayerTitles(game, playerId).reduce(
+    (total, title) => total + calculateTitleRent(title),
+    0,
+  );
+}
+
+export function calculateTitleMaintenance(title: TitleOwnership) {
+  const baseValue = getTitleLandValue(title) + calculateTitleBuiltValue(title);
+
+  return Math.round(baseValue * 0.05);
+}
+
+export function calculatePlayerRoundExpenses(game: GameState, playerId: string) {
+  return getPlayerTitles(game, playerId).reduce(
+    (total, title) => total + calculateTitleMaintenance(title),
+    0,
+  );
 }
 
 export function calculateCreditLimit(game: GameState, playerId: string) {
@@ -274,16 +283,38 @@ export function calculateCreditLimit(game: GameState, playerId: string) {
   );
 }
 
-export function calculateBankScore(game: GameState, playerId: string) {
-  const finance = game.playerFinances[playerId];
+export function calculateScoreFromDebt(game: GameState, playerId: string, totalDebt: number) {
   const creditLimit = calculateCreditLimit(game, playerId);
-  const totalDebt = calculateActiveDebtTotal(finance);
 
   if (creditLimit <= 0) {
     return 0;
   }
 
   return Math.max(0, Math.round(100 - (totalDebt / creditLimit) * 100));
+}
+
+export function calculateBankScore(game: GameState, playerId: string) {
+  const finance = game.playerFinances[playerId];
+
+  return calculateScoreFromDebt(game, playerId, calculateActiveDebtTotal(finance));
+}
+
+export function calculateLoanDebtAmount(amount: number, interestRate = BANK_LOAN_INTEREST_RATE) {
+  return Math.round(amount * (1 + interestRate));
+}
+
+export function calculateProjectedBankScore(
+  game: GameState,
+  playerId: string,
+  additionalDebtAmount: number,
+) {
+  const finance = game.playerFinances[playerId];
+
+  return calculateScoreFromDebt(
+    game,
+    playerId,
+    calculateActiveDebtTotal(finance) + additionalDebtAmount,
+  );
 }
 
 export function getBankScoreLabel(score: number) {
@@ -306,6 +337,24 @@ export function calculateTitleTax(game: GameState, title: TitleOwnership) {
 
     return total + (landValue + property.constructionCost) * taxRate;
   }, 0);
+}
+
+export function isPlayerOnBankSpace(game: GameState, playerId: string) {
+  const position = game.positions[playerId];
+
+  return BOARD_SPACES_BY_INDEX[position]?.kind === 'bank';
+}
+
+export function getTaxPendingPayableAmount(game: GameState, playerId: string, tax: TaxPending) {
+  return isPlayerOnBankSpace(game, playerId) ? tax.discountedAmount : tax.amount;
+}
+
+export function calculatePendingTaxTotal(game: GameState, playerId: string) {
+  return Object.values(game.taxPendings ?? {}).reduce(
+    (total, tax) =>
+      total + (tax.playerId === playerId && tax.status === 'pending' ? tax.amount : 0),
+    0,
+  );
 }
 
 export function calculateTitleBankSaleValue(game: GameState, title: TitleOwnership) {
@@ -335,81 +384,45 @@ export function createLapPendings(game: GameState, playerId: string, now = Date.
   }
 
   const playerTitles = getPlayerTitles(game, playerId);
-  const dividendTitles = playerTitles.filter((title) =>
-    (title.properties ?? []).some((property) => {
-      const blueprint = PROPERTY_BLUEPRINTS.find((item) => item.key === property.blueprintKey);
-
-      return (blueprint?.dividendsPerRound ?? 0) > 0;
-    }),
+  const receivables = calculatePlayerRoundIncome(game, playerId);
+  const maintenance = calculatePlayerRoundExpenses(game, playerId);
+  const taxes = playerTitles.reduce(
+    (total, title) => total + Math.round(calculateTitleTax(game, title)),
+    0,
   );
-  const taxItems = playerTitles
-    .map((title) => {
-      const amount = Math.round(calculateTitleTax(game, title));
-      const boardSpace = BOARD_SPACES_BY_INDEX[title.boardIndex];
+  const netAmount = receivables - maintenance - taxes;
 
-      if (amount <= 0) {
-        return null;
-      }
+  if (receivables <= 0 && maintenance <= 0 && taxes <= 0) {
+    return {
+      roundPendings: game.roundPendings,
+      taxPendings: game.taxPendings,
+    };
+  }
 
-      const id = crypto.randomUUID();
-      const taxPending: TaxPending = {
-        id,
-        playerId,
-        boardIndex: title.boardIndex,
-        titleName: boardSpace?.streetName ?? boardSpace?.name ?? `Titulo ${title.boardIndex}`,
-        amount,
-        discountedAmount: Math.round(amount * 0.95),
-        round: game.round,
-        status: 'pending',
-        createdAt: now,
-      };
-
-      return taxPending;
-    })
-    .filter((item): item is TaxPending => Boolean(item));
-  const nextTaxPendings = {
-    ...game.taxPendings,
-    ...Object.fromEntries(taxItems.map((item) => [item.id, item])),
+  const id = crypto.randomUUID();
+  const roundPending: RoundPending = {
+    id,
+    playerId,
+    kind: 'statement',
+    amount: Math.abs(netAmount),
+    round: game.round,
+    titleRefs: playerTitles.map((title) => title.boardIndex),
+    breakdown: {
+      receivables,
+      maintenance,
+      taxes,
+      netAmount,
+    },
+    status: 'pending',
+    createdAt: now,
   };
-  const roundPendings = [
-    {
-      kind: 'dividends' as const,
-      amount: calculatePlayerRoundIncome(game, playerId),
-      titleRefs: dividendTitles.map((title) => title.boardIndex),
-    },
-    {
-      kind: 'maintenance' as const,
-      amount: calculatePlayerRoundExpenses(game, playerId),
-      titleRefs: playerTitles.map((title) => title.boardIndex),
-    },
-    {
-      kind: 'taxes' as const,
-      amount: taxItems.reduce((total, item) => total + item.amount, 0),
-      titleRefs: taxItems.map((item) => item.boardIndex),
-    },
-  ]
-    .filter((item) => item.amount > 0)
-    .map((item): RoundPending => {
-      const id = crypto.randomUUID();
-
-      return {
-        id,
-        playerId,
-        kind: item.kind,
-        amount: item.amount,
-        round: game.round,
-        titleRefs: item.titleRefs,
-        status: 'pending',
-        createdAt: now,
-      };
-    });
 
   return {
     roundPendings: {
       ...game.roundPendings,
-      ...Object.fromEntries(roundPendings.map((pending) => [pending.id, pending])),
+      [id]: roundPending,
     },
-    taxPendings: nextTaxPendings,
+    taxPendings: game.taxPendings,
   };
 }
 
@@ -425,4 +438,56 @@ export function getNextRealEstateBlueprint(properties: BuiltProperty[] = []) {
   return Object.values(PROPERTY_BLUEPRINTS).find(
     (blueprint) => blueprint.category === 'real-estate' && blueprint.level === nextLevel,
   );
+}
+
+export function getTitlePropertySlots(properties: BuiltProperty[] = [], slotCount = 3) {
+  const slots: Array<BuiltProperty | null> = Array.from({ length: slotCount }, () => null);
+
+  properties.forEach((property) => {
+    const preferredSlot =
+      typeof property.slotIndex === 'number' &&
+      property.slotIndex >= 0 &&
+      property.slotIndex < slotCount
+        ? property.slotIndex
+        : slots.findIndex((slot) => !slot);
+
+    if (preferredSlot >= 0 && !slots[preferredSlot]) {
+      slots[preferredSlot] = property;
+    }
+  });
+
+  return slots;
+}
+
+export function getNextRealEstateBlueprintForSlot(property?: BuiltProperty | null) {
+  const currentBlueprint = property
+    ? PROPERTY_BLUEPRINTS.find((blueprint) => blueprint.key === property.blueprintKey)
+    : undefined;
+  const nextLevel =
+    currentBlueprint?.category === 'real-estate' ? (currentBlueprint.level ?? 0) + 1 : 1;
+
+  return PROPERTY_BLUEPRINTS.find(
+    (blueprint) => blueprint.category === 'real-estate' && blueprint.level === nextLevel,
+  );
+}
+
+export function getAvailableBlueprintsForPropertySlot(property?: BuiltProperty | null) {
+  const currentBlueprint = property
+    ? PROPERTY_BLUEPRINTS.find((blueprint) => blueprint.key === property.blueprintKey)
+    : undefined;
+
+  if (currentBlueprint?.category === 'business') {
+    return [];
+  }
+
+  const nextRealEstateBlueprint = getNextRealEstateBlueprintForSlot(property);
+
+  if (currentBlueprint?.category === 'real-estate') {
+    return nextRealEstateBlueprint ? [nextRealEstateBlueprint] : [];
+  }
+
+  return [
+    nextRealEstateBlueprint,
+    ...PROPERTY_BLUEPRINTS.filter((blueprint) => blueprint.category === 'business'),
+  ].filter((blueprint): blueprint is PropertyBlueprint => Boolean(blueprint));
 }

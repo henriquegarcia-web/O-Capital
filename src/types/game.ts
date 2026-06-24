@@ -59,13 +59,14 @@ export type BuiltProperty = {
   blueprintKey: string;
   optionName?: string;
   category: PropertyCategory;
+  slotIndex?: number;
   constructionCost: number;
   acquiredAtRound: number;
   acquiredAt: number;
 };
 
 export type PlayerDebtStatus = 'active' | 'paid' | 'forgiven';
-export type PlayerDebtKind = 'rent' | 'bank' | 'tax' | 'maintenance';
+export type PlayerDebtKind = 'rent' | 'bank' | 'tax' | 'maintenance' | 'player-loan' | 'round-fees';
 
 export type PlayerDebt = {
   id: string;
@@ -89,17 +90,21 @@ export type PlayerTransactionKind =
   | 'bank-credit'
   | 'bank-debit'
   | 'bank-loan'
+  | 'player-loan-sent'
+  | 'player-loan-received'
   | 'debt-payment'
   | 'debt-received'
   | 'debt-forgiven'
   | 'tax-payment'
   | 'round-income'
   | 'maintenance-payment'
+  | 'round-statement'
   | 'title-bank-sale'
   | 'title-player-sale'
   | 'title-player-purchase'
   | 'title-purchase'
   | 'property-build'
+  | 'property-destroy'
   | 'rent-paid'
   | 'rent-received'
   | 'debt-created';
@@ -130,6 +135,7 @@ export type TitleOwnership = {
   acquiredAtRound?: number;
   properties?: BuiltProperty[];
   lastPropertyPurchaseRound?: number;
+  lastPropertyActionRound?: number;
 };
 
 export type TaxPendingStatus = 'pending' | 'paid';
@@ -148,7 +154,7 @@ export type TaxPending = {
 };
 
 export type RoundPendingStatus = 'pending' | 'confirmed';
-export type RoundPendingKind = 'dividends' | 'maintenance' | 'taxes';
+export type RoundPendingKind = 'dividends' | 'maintenance' | 'taxes' | 'statement';
 
 export type RoundPending = {
   id: string;
@@ -157,6 +163,12 @@ export type RoundPending = {
   amount: number;
   round: number;
   titleRefs?: number[];
+  breakdown?: {
+    receivables: number;
+    maintenance: number;
+    taxes: number;
+    netAmount: number;
+  };
   status: RoundPendingStatus;
   createdAt: number;
   confirmedAt?: number;
@@ -212,6 +224,21 @@ export type TitleAuction = {
   cancelledAt?: number;
 };
 
+export type PlayerLoanOfferStatus = 'pending' | 'accepted' | 'declined' | 'cancelled';
+
+export type PlayerLoanOffer = {
+  id: string;
+  borrowerId: string;
+  lenderId: string;
+  amount: number;
+  status: PlayerLoanOfferStatus;
+  createdAt: number;
+  acceptedAt?: number;
+  declinedAt?: number;
+  cancelledAt?: number;
+  debtId?: string;
+};
+
 export type GameStatus = 'waiting' | 'playing' | 'paused' | 'finished';
 
 export type GameState = {
@@ -231,6 +258,7 @@ export type GameState = {
   roundPendings: Record<string, RoundPending>;
   titleSaleOffers: Record<string, TitleSaleOffer>;
   titleAuctions: Record<string, TitleAuction>;
+  playerLoanOffers: Record<string, PlayerLoanOffer>;
   startedAt?: number;
   pausedAt?: number;
   finishedAt?: number;

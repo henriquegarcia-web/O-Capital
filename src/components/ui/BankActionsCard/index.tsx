@@ -15,6 +15,7 @@ import {
 
 import { applyBankBalanceAction } from '@/api';
 import type { Player, Room } from '@/types';
+import { formatMoney } from '@/utils';
 
 type BankActionsCardProps = {
   room: Room;
@@ -38,9 +39,9 @@ export function BankActionsCard({ players, room }: BankActionsCardProps) {
 
     modal.confirm({
       title: 'Confirmar acao do banco',
-      content: `${values.action === 'add' ? 'Somar' : 'Subtrair'} ${values.amount} para ${
-        targetPlayer?.name ?? 'jogador'
-      }?`,
+      content: `${values.action === 'add' ? 'Somar' : 'Subtrair'} ${formatMoney(
+        values.amount,
+      )} para ${targetPlayer?.name ?? 'jogador'}?`,
       okText: 'Confirmar',
       cancelText: 'Cancelar',
       async onOk() {

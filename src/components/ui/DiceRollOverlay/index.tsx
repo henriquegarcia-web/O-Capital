@@ -140,7 +140,7 @@ export function DiceRollOverlay({ open, result }: DiceRollOverlayProps) {
 
     const stage = stageRef.current;
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
+    const camera = new THREE.OrthographicCamera(-2.15, 2.15, 2.15, -2.15, 0.1, 100);
     const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
     const firstDie = createDice(toDiceValue(result?.diceOne, 1), -1.12);
     const secondDie = createDice(toDiceValue(result?.diceTwo, 2), 1.12);
@@ -172,8 +172,13 @@ export function DiceRollOverlay({ open, result }: DiceRollOverlayProps) {
     function resizeRenderer() {
       const width = stage.clientWidth;
       const height = stage.clientHeight;
+      const aspect = width / height;
+      const frustumSize = 4.3;
 
-      camera.aspect = width / height;
+      camera.left = (frustumSize * aspect) / -2;
+      camera.right = (frustumSize * aspect) / 2;
+      camera.top = frustumSize / 2;
+      camera.bottom = frustumSize / -2;
       camera.updateProjectionMatrix();
       renderer.setSize(width, height, false);
     }

@@ -1,7 +1,11 @@
 import { useMemo, useState } from 'react';
 import {
   BankOutlined,
+  DollarOutlined,
+  HomeOutlined,
+  LineChartOutlined,
   RiseOutlined,
+  ShopOutlined,
   ShoppingCartOutlined,
   SwapOutlined,
 } from '@ant-design/icons';
@@ -9,12 +13,14 @@ import {
   App,
   Button,
   Card,
+  Col,
   Empty,
   Flex,
   Form,
   Grid,
   InputNumber,
   Modal,
+  Row,
   Select,
   Space,
   Table,
@@ -28,6 +34,7 @@ import {
   closeTitleAuction,
   createTitleAuction,
   createTitleSaleOffer,
+  declineTitleSaleOffer,
   placeTitleAuctionBid,
   sellTitleToBank,
 } from '@/api';
@@ -41,8 +48,12 @@ import type {
   TitleSaleOffer,
 } from '@/types';
 import {
+  calculatePlayerRoundIncome,
   calculateTitleBankSaleValue,
   calculateTitleBuiltValue,
+  calculateTitleMaintenance,
+  calculateTitleReceivables,
+  calculateTitleRent,
   calculateTitleTax,
   formatMoney,
   getPlayerTitles,
@@ -72,8 +83,7 @@ function getPlayerName(players: Player[], playerId: string) {
 
 function getNeighborhoodName(neighborhoodKey?: string) {
   return (
-    NEIGHBORHOODS.find((neighborhood) => neighborhood.key === neighborhoodKey)?.name ??
-    'Bairro'
+    NEIGHBORHOODS.find((neighborhood) => neighborhood.key === neighborhoodKey)?.name ?? 'Bairro'
   );
 }
 
@@ -102,6 +112,13 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
     (player) => player.status !== 'eliminated' && player.id !== currentPlayer.id,
   );
 
+  const roundIncome = calculatePlayerRoundIncome(game, currentPlayer.id);
+  const roundCosts = myTitles.reduce(
+    (total, title) =>
+      total + calculateTitleMaintenance(title) + Math.round(calculateTitleTax(game, title)),
+    0,
+  );
+
   async function runAction(action: () => Promise<unknown>, successMessage: string) {
     setLoadingAction(true);
 
@@ -120,7 +137,12 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
     }
   }
 
-  function confirmAction(title: string, content: string, action: () => Promise<unknown>, successMessage: string) {
+  function confirmAction(
+    title: string,
+    content: string,
+    action: () => Promise<unknown>,
+    successMessage: string,
+  ) {
     modal.confirm({
       title,
       content,
@@ -155,37 +177,44 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
     );
   }
 
-  function calculateTitleMaintenanceDue(title: TitleOwnership) {
-    return (title.properties ?? []).reduce((total, property) => {
-      const blueprint = PROPERTY_BLUEPRINTS.find((item) => item.key === property.blueprintKey);
-
-      if (!blueprint || game.round <= property.acquiredAtRound) {
-        return total;
-      }
-
-      const due =
-        blueprint.maintenanceIntervalRounds > 0 &&
-        (game.round - property.acquiredAtRound) % blueprint.maintenanceIntervalRounds === 0;
-
-      return total + (due ? blueprint.maintenanceCost : 0);
-    }, 0);
-  }
-
   function renderTitleValues(title: TitleOwnership) {
     const values = [
-      ['Terreno', formatMoney(getTitleLandValue(title))],
-      ['Construido', formatMoney(calculateTitleBuiltValue(title))],
-      ['Valor estimado', formatMoney(calculateTitleBankSaleValue(game, title))],
-      ['Impostos', formatMoney(Math.round(calculateTitleTax(game, title)))],
-      ['Manutencao', formatMoney(calculateTitleMaintenanceDue(title))],
+      { label: 'Terreno', value: formatMoney(getTitleLandValue(title)) },
+      { label: 'Construido', value: formatMoney(calculateTitleBuiltValue(title)) },
+      { label: 'Valor estimado', value: formatMoney(calculateTitleBankSaleValue(game, title)) },
+      {
+        label: 'Impostos',
+        value: formatMoney(Math.round(calculateTitleTax(game, title))),
+        tone: 'danger',
+      },
+      {
+        label: 'Manutencao',
+        value: formatMoney(calculateTitleMaintenance(title)),
+        tone: 'danger',
+      },
+      {
+        label: 'Recebiveis',
+        value: formatMoney(calculateTitleReceivables(title)),
+        tone: 'success',
+      },
+      {
+        label: 'Alugueis',
+        value: formatMoney(calculateTitleRent(title)),
+        tone: 'success',
+      },
     ];
 
     return (
       <div className="bank-title-values">
-        {values.map(([label, value]) => (
-          <Flex key={label} align="center" justify="space-between" gap={10}>
-            <Typography.Text type="secondary">{label}</Typography.Text>
-            <Typography.Text strong>{value}</Typography.Text>
+        {values.map((item) => (
+          <Flex key={item.label} align="center" justify="space-between" gap={10}>
+            <Typography.Text type="secondary">{item.label}</Typography.Text>
+            <Typography.Text
+              strong
+              className={item.tone ? `bank-money bank-money--${item.tone}` : undefined}
+            >
+              {item.value}
+            </Typography.Text>
           </Flex>
         ))}
       </div>
@@ -194,26 +223,29 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
 
   function renderTitleProperties(title: TitleOwnership) {
     const properties = title.properties ?? [];
-    const tax = Math.round(calculateTitleTax(game, title));
-    const maintenance = calculateTitleMaintenanceDue(title);
 
     return (
       <Space orientation="vertical" size={6} className="bank-title-properties">
-        <Typography.Text type="secondary">
-          {properties.length > 0
-            ? properties
-                .map((property) => property.optionName ?? getBlueprintName(property.blueprintKey))
-                .join(', ')
-            : 'Sem propriedades'}
-        </Typography.Text>
-        <Flex justify="space-between" gap={10}>
-          <Typography.Text type="secondary">Impostos</Typography.Text>
-          <Typography.Text strong>{formatMoney(tax)}</Typography.Text>
-        </Flex>
-        <Flex justify="space-between" gap={10}>
-          <Typography.Text type="secondary">Manutencao</Typography.Text>
-          <Typography.Text strong>{formatMoney(maintenance)}</Typography.Text>
-        </Flex>
+        {properties.length > 0 ? (
+          properties.map((property) => {
+            const blueprint = PROPERTY_BLUEPRINTS.find(
+              (item) => item.key === property.blueprintKey,
+            );
+            const label =
+              property.optionName ?? blueprint?.name ?? getBlueprintName(property.blueprintKey);
+
+            return (
+              <Flex key={property.id} align="center" gap={8} className="bank-title-property-item">
+                <span className="bank-title-property-item__icon">
+                  {blueprint?.category === 'business' ? <ShopOutlined /> : <HomeOutlined />}
+                </span>
+                <Typography.Text>{label}</Typography.Text>
+              </Flex>
+            );
+          })
+        ) : (
+          <Typography.Text type="secondary">Sem propriedades</Typography.Text>
+        )}
       </Space>
     );
   }
@@ -290,21 +322,39 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
                 <Typography.Text strong>{formatMoney(offer.amount)}</Typography.Text>
               </Flex>
             </Space>
-            <Button
-              size="small"
-              block
-              icon={<ShoppingCartOutlined />}
-              onClick={() =>
-                confirmAction(
-                  'Confirmar proposta',
-                  `Aceitar a proposta de ${formatMoney(offer.amount)}?`,
-                  () => acceptTitleSaleOffer(room.id, currentPlayer.id, offer.id),
-                  'Proposta aceita.',
-                )
-              }
-            >
-              Aceitar
-            </Button>
+            <Flex gap={8} className="bank-two-actions">
+              <Button
+                size="small"
+                type="primary"
+                block
+                icon={<ShoppingCartOutlined />}
+                onClick={() =>
+                  confirmAction(
+                    'Confirmar proposta',
+                    `Aceitar a proposta de ${formatMoney(offer.amount)}?`,
+                    () => acceptTitleSaleOffer(room.id, currentPlayer.id, offer.id),
+                    'Proposta aceita.',
+                  )
+                }
+              >
+                Aceitar
+              </Button>
+              <Button
+                size="small"
+                danger
+                block
+                onClick={() =>
+                  confirmAction(
+                    'Recusar proposta',
+                    'Recusar esta proposta de venda?',
+                    () => declineTitleSaleOffer(room.id, currentPlayer.id, offer.id),
+                    'Proposta recusada.',
+                  )
+                }
+              >
+                Recusar
+              </Button>
+            </Flex>
           </div>
         ))
       )}
@@ -415,20 +465,39 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
       key: 'actions',
       align: 'right',
       render: (_, offer) => (
-        <Button
-          size="small"
-          icon={<ShoppingCartOutlined />}
-          onClick={() =>
-            confirmAction(
-              'Confirmar proposta',
-              `Aceitar a proposta de ${formatMoney(offer.amount)}?`,
-              () => acceptTitleSaleOffer(room.id, currentPlayer.id, offer.id),
-              'Proposta aceita.',
-            )
-          }
-        >
-          Aceitar
-        </Button>
+        <Flex gap={8} className="bank-two-actions">
+          <Button
+            size="small"
+            type="primary"
+            block
+            icon={<ShoppingCartOutlined />}
+            onClick={() =>
+              confirmAction(
+                'Confirmar proposta',
+                `Aceitar a proposta de ${formatMoney(offer.amount)}?`,
+                () => acceptTitleSaleOffer(room.id, currentPlayer.id, offer.id),
+                'Proposta aceita.',
+              )
+            }
+          >
+            Aceitar
+          </Button>
+          <Button
+            size="small"
+            danger
+            block
+            onClick={() =>
+              confirmAction(
+                'Recusar proposta',
+                'Recusar esta proposta de venda?',
+                () => declineTitleSaleOffer(room.id, currentPlayer.id, offer.id),
+                'Proposta recusada.',
+              )
+            }
+          >
+            Recusar
+          </Button>
+        </Flex>
       ),
     },
   ];
@@ -484,16 +553,44 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
 
   return (
     <Space orientation="vertical" size={16} style={{ width: '100%' }}>
-      <Card className="bank-app-card bank-app-card--dark">
-        <Flex align="center" justify="space-between" gap={12} wrap>
-          <Space orientation="vertical" size={2} className="bank-app-card-header">
-            <Typography.Title level={4} style={{ margin: 0 }}>
-              Titulos
-            </Typography.Title>
-            <Typography.Text type="secondary">{myTitles.length} titulos adquiridos</Typography.Text>
-          </Space>
-          <Tag color="green">Rodada {game.round}</Tag>
-        </Flex>
+      <Card className="bank-app-card bank-app-card--dark bank-menu-summary">
+        <Space orientation="vertical" size={14} style={{ width: '100%' }}>
+          <Flex align="center" justify="space-between" gap={12} wrap>
+            <Space orientation="vertical" size={2} className="bank-app-card-header">
+              <Typography.Title level={4} style={{ margin: 0 }}>
+                Titulos
+              </Typography.Title>
+              <Typography.Text type="secondary">
+                {myTitles.length} titulos adquiridos
+              </Typography.Text>
+            </Space>
+            <Tag color="green">Rodada {game.round}</Tag>
+          </Flex>
+          <Row gutter={[10, 10]}>
+            <Col xs={12}>
+              <div className="player-finance-card__metric">
+                <LineChartOutlined />
+                <Typography.Text className="player-finance-card__metric-label">
+                  Receber por rodada
+                </Typography.Text>
+                <Typography.Text className="player-finance-card__metric-value">
+                  {formatMoney(roundIncome)}
+                </Typography.Text>
+              </div>
+            </Col>
+            <Col xs={12}>
+              <div className="player-finance-card__metric">
+                <DollarOutlined />
+                <Typography.Text className="player-finance-card__metric-label">
+                  Pagar por rodada
+                </Typography.Text>
+                <Typography.Text className="player-finance-card__metric-value">
+                  {formatMoney(roundCosts)}
+                </Typography.Text>
+              </div>
+            </Col>
+          </Row>
+        </Space>
       </Card>
 
       <Card title="Meus titulos" className="bank-app-card">

@@ -28,15 +28,16 @@ import type {
 import {
   advanceTurn,
   BANK_LOAN_INTEREST_RATE,
-  BANK_LOAN_MIN_SCORE,
-  calculateBankScore,
-  calculateCreditLimit,
+  calculateLoanDebtAmount,
+  calculateProjectedBankScore,
   calculateTitleBankSaleValue,
+  getTaxPendingPayableAmount,
   createLapPendings,
   didPassStart,
   getActivePlayers,
-  getNextRealEstateBlueprint,
+  getAvailableBlueprintsForPropertySlot,
   getInitialGameState,
+  getTitlePropertySlots,
   hydrateGameState,
   moveBoardPosition,
   normalizeComparableText,
@@ -116,13 +117,6 @@ function createDebt(
     createdAt: now,
     updatedAt: now,
   };
-}
-
-function getActiveDebtAmount(finance?: PlayerFinance) {
-  return Object.values(finance?.debts ?? {}).reduce(
-    (total, debt) => total + (debt.status === 'active' ? debt.amount : 0),
-    0,
-  );
 }
 
 function updateDebtMirrors(
@@ -684,24 +678,11 @@ export async function requestBankLoan(roomId: string, playerId: string, amount: 
       throw new Error('Financas do jogador nao encontradas.');
     }
 
-    if (
-      Object.values(game.bankLoans).some(
-        (loan) => loan.playerId === playerId && loan.status === 'active',
-      )
-    ) {
-      throw new Error('Existe um emprestimo bancario ativo.');
-    }
+    const totalDebtAmount = calculateLoanDebtAmount(loanAmount);
+    const projectedScore = calculateProjectedBankScore(game, playerId, totalDebtAmount);
 
-    const creditLimit = calculateCreditLimit(game, playerId);
-    const score = calculateBankScore(game, playerId);
-    const activeDebt = getActiveDebtAmount(finance);
-
-    if (score <= BANK_LOAN_MIN_SCORE) {
-      throw new Error('Pontuacao bancaria insuficiente para emprestimo.');
-    }
-
-    if (activeDebt + loanAmount > creditLimit) {
-      throw new Error('Valor solicitado excede o limite disponivel.');
+    if (projectedScore <= 0) {
+      throw new Error('Emprestimo bloqueado: este valor levaria o jogador a falencia.');
     }
 
     const debt = createDebt(
@@ -709,8 +690,8 @@ export async function requestBankLoan(roomId: string, playerId: string, amount: 
         kind: 'bank',
         creditorId: null,
         debtorId: playerId,
-        amount: Math.round(loanAmount * (1 + BANK_LOAN_INTEREST_RATE)),
-        originalAmount: Math.round(loanAmount * (1 + BANK_LOAN_INTEREST_RATE)),
+        amount: totalDebtAmount,
+        originalAmount: totalDebtAmount,
         interestRate: BANK_LOAN_INTEREST_RATE,
         createdAtRound: game.round,
         description: 'Emprestimo bancario',
@@ -957,7 +938,7 @@ export async function payTaxPending(roomId: string, playerId: string, taxPending
       throw new Error('Imposto pendente nao encontrado.');
     }
 
-    const amount = taxPending.discountedAmount ?? taxPending.amount;
+    const amount = getTaxPendingPayableAmount(game, playerId, taxPending);
 
     if (finance.balance < amount) {
       throw new Error('Saldo insuficiente para pagar este imposto.');
@@ -1018,74 +999,64 @@ export async function confirmRoundPending(roomId: string, playerId: string, pend
       throw new Error('Pendencia de rodada nao encontrada.');
     }
 
-    let nextFinance = finance;
-
-    if (pending.kind === 'dividends') {
-      nextFinance = appendFinanceTransaction(
-        {
-          ...finance,
-          balance: finance.balance + pending.amount,
-        },
-        {
-          kind: 'round-income',
-          amount: pending.amount,
-          round: game.round,
-          description: 'Recebimento de dividendos',
-        },
-        now,
-      );
+    if (pending.kind !== 'statement') {
+      throw new Error('Pendencia de rodada antiga nao e mais suportada.');
     }
 
-    if (pending.kind === 'maintenance') {
-      const paidAmount = Math.min(finance.balance, pending.amount);
-      const pendingAmount = pending.amount - paidAmount;
+    const breakdown = pending.breakdown ?? {
+      receivables: 0,
+      maintenance: 0,
+      taxes: 0,
+      netAmount: 0,
+    };
+    const netAmount = breakdown.netAmount;
+    let nextFinance = appendFinanceTransaction(
+      {
+        ...finance,
+        balance:
+          netAmount >= 0 ? finance.balance + netAmount : Math.max(0, finance.balance + netAmount),
+      },
+      {
+        kind: 'round-statement',
+        amount: netAmount,
+        round: game.round,
+        description: 'Prestacao de contas da rodada',
+      },
+      now,
+    );
 
-      nextFinance = appendFinanceTransaction(
+    if (netAmount < 0 && finance.balance + netAmount < 0) {
+      const debtAmount = Math.abs(finance.balance + netAmount);
+      const debt = createDebt(
         {
-          ...finance,
-          balance: finance.balance - paidAmount,
-        },
-        {
-          kind: 'maintenance-payment',
-          amount: -paidAmount,
-          round: game.round,
-          description: 'Pagamento de manutencoes',
+          kind: 'round-fees',
+          creditorId: null,
+          debtorId: playerId,
+          amount: debtAmount,
+          originalAmount: debtAmount,
+          createdAtRound: game.round,
+          sourceId: pending.id,
+          description: 'Taxas de rodada',
         },
         now,
       );
 
-      if (pendingAmount > 0) {
-        const debt = createDebt(
-          {
-            kind: 'maintenance',
-            creditorId: null,
-            debtorId: playerId,
-            amount: pendingAmount,
-            originalAmount: pendingAmount,
-            createdAtRound: game.round,
-            sourceId: pending.id,
-            description: 'Manutencao pendente',
+      nextFinance = appendFinanceTransaction(
+        {
+          ...nextFinance,
+          debts: {
+            ...nextFinance.debts,
+            [debt.id]: debt,
           },
-          now,
-        );
-
-        nextFinance = appendFinanceTransaction(
-          {
-            ...nextFinance,
-            debts: {
-              ...nextFinance.debts,
-              [debt.id]: debt,
-            },
-          },
-          {
-            kind: 'debt-created',
-            amount: -pendingAmount,
-            round: game.round,
-            description: 'Divida criada por manutencao insuficiente',
-          },
-          now,
-        );
-      }
+        },
+        {
+          kind: 'debt-created',
+          amount: -debtAmount,
+          round: game.round,
+          description: 'Divida criada por taxas de rodada insuficientes',
+        },
+        now,
+      );
     }
 
     return toFirebaseValue({
@@ -1191,6 +1162,7 @@ export async function buildTitleProperty(
   playerId: string,
   boardIndex: number,
   blueprintKey: string,
+  slotIndex: number,
   optionName?: string,
 ) {
   const room = await getRoom(roomId);
@@ -1211,6 +1183,11 @@ export async function buildTitleProperty(
     const playerFinance = game.playerFinances[playerId];
     const properties = title?.properties ?? [];
     const propertySlots = boardSpace?.propertySlots ?? 3;
+    const slots = getTitlePropertySlots(properties, propertySlots);
+    const currentSlotProperty = slots[slotIndex];
+    const currentSlotBlueprint = currentSlotProperty
+      ? getBlueprint(currentSlotProperty.blueprintKey)
+      : undefined;
 
     if (boardSpace?.kind !== 'street') {
       throw new Error('Esta casa nao permite construcao.');
@@ -1224,24 +1201,30 @@ export async function buildTitleProperty(
       throw new Error('Propriedade selecionada nao encontrada.');
     }
 
-    if (properties.length >= propertySlots) {
-      throw new Error('Este titulo ja atingiu o limite de propriedades.');
+    if (!Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex >= propertySlots) {
+      throw new Error('Slot de propriedade invalido.');
     }
 
     if (title.acquiredAtRound === game.round) {
       throw new Error('Construcao disponivel apenas a partir da proxima rodada.');
     }
 
-    if (title.lastPropertyPurchaseRound === game.round) {
-      throw new Error('Este titulo ja recebeu uma propriedade nesta rodada.');
+    if ((title.lastPropertyActionRound ?? title.lastPropertyPurchaseRound) === game.round) {
+      throw new Error('Este titulo ja teve uma acao de propriedade nesta rodada.');
     }
 
-    if (blueprint.category === 'real-estate') {
-      const nextRealEstateBlueprint = getNextRealEstateBlueprint(properties);
+    if (currentSlotBlueprint?.category === 'business') {
+      throw new Error('Empreendimentos nao possuem evolucao. Destrua para trocar.');
+    }
 
-      if (nextRealEstateBlueprint?.key !== blueprint.key) {
-        throw new Error('Imoveis devem seguir a progressao de nivel.');
-      }
+    if (blueprint.category === 'business' && currentSlotProperty) {
+      throw new Error('Empreendimentos so podem ser construidos em slots vazios.');
+    }
+
+    const availableBlueprints = getAvailableBlueprintsForPropertySlot(currentSlotProperty);
+
+    if (!availableBlueprints.some((item) => item.key === blueprint.key)) {
+      throw new Error('Propriedade indisponivel para este slot.');
     }
 
     if (!playerFinance) {
@@ -1256,11 +1239,17 @@ export async function buildTitleProperty(
       id: crypto.randomUUID(),
       blueprintKey: blueprint.key,
       category: blueprint.category,
+      slotIndex,
       constructionCost: blueprint.constructionCost,
       acquiredAtRound: game.round,
       acquiredAt: now,
       ...(optionName ? { optionName } : {}),
     };
+    const nextProperties = currentSlotProperty
+      ? properties.map((property) =>
+          property.id === currentSlotProperty.id ? builtProperty : property,
+        )
+      : [...properties, builtProperty];
     const nextFinance = appendFinanceTransaction(
       {
         ...playerFinance,
@@ -1282,8 +1271,93 @@ export async function buildTitleProperty(
         ...game.titles,
         [titleKey]: {
           ...title,
-          properties: [...properties, builtProperty],
+          properties: nextProperties,
           lastPropertyPurchaseRound: game.round,
+          lastPropertyActionRound: game.round,
+        },
+      },
+      playerFinances: {
+        ...game.playerFinances,
+        [playerId]: nextFinance,
+      },
+      updatedAt: now,
+    });
+  });
+
+  return update(ref(database, `rooms/${roomId}`), {
+    updatedAt: Date.now(),
+  });
+}
+
+export async function destroyTitleProperty(
+  roomId: string,
+  playerId: string,
+  boardIndex: number,
+  propertyId: string,
+) {
+  const room = await getRoom(roomId);
+
+  if (!room) {
+    throw new Error('Sala nao encontrada.');
+  }
+
+  const players = toPlayersArray(room.players);
+  const boardSpace = BOARD_SPACES_BY_INDEX[boardIndex];
+
+  await runTransaction(ref(database, `rooms/${roomId}/game`), (currentGame?: GameState) => {
+    const now = Date.now();
+    const game = hydrateGameState(currentGame, players);
+    const titleKey = String(boardIndex);
+    const title = game.titles[titleKey];
+    const playerFinance = game.playerFinances[playerId];
+    const properties = title?.properties ?? [];
+    const property = properties.find((item) => item.id === propertyId);
+    const blueprint = property ? getBlueprint(property.blueprintKey) : undefined;
+
+    if (boardSpace?.kind !== 'street') {
+      throw new Error('Esta casa nao possui propriedades.');
+    }
+
+    if (!title || title.ownerId !== playerId) {
+      throw new Error('Apenas o dono do titulo pode destruir propriedades aqui.');
+    }
+
+    if (!property) {
+      throw new Error('Propriedade nao encontrada.');
+    }
+
+    if (title.acquiredAtRound === game.round) {
+      throw new Error('Destruicao disponivel apenas a partir da proxima rodada.');
+    }
+
+    if ((title.lastPropertyActionRound ?? title.lastPropertyPurchaseRound) === game.round) {
+      throw new Error('Este titulo ja teve uma acao de propriedade nesta rodada.');
+    }
+
+    if (!playerFinance) {
+      throw new Error('Financas do jogador nao encontradas.');
+    }
+
+    const nextFinance = appendFinanceTransaction(
+      playerFinance,
+      {
+        kind: 'property-destroy',
+        amount: 0,
+        round: game.round,
+        description: `Destruicao: ${property.optionName ?? blueprint?.name ?? 'propriedade'}`,
+        boardIndex,
+      },
+      now,
+    );
+
+    return toFirebaseValue({
+      ...game,
+      titles: {
+        ...game.titles,
+        [titleKey]: {
+          ...title,
+          properties: properties.filter((item) => item.id !== propertyId),
+          lastPropertyActionRound: game.round,
         },
       },
       playerFinances: {
@@ -1509,6 +1583,251 @@ export async function acceptTitleSaleOffer(roomId: string, buyerId: string, offe
   return update(ref(database, `rooms/${roomId}`), { updatedAt: Date.now() });
 }
 
+export async function declineTitleSaleOffer(roomId: string, buyerId: string, offerId: string) {
+  const room = await getRoom(roomId);
+
+  if (!room) {
+    throw new Error('Sala nao encontrada.');
+  }
+
+  const players = toPlayersArray(room.players);
+
+  await runTransaction(ref(database, `rooms/${roomId}/game`), (currentGame?: GameState) => {
+    const now = Date.now();
+    const game = hydrateGameState(currentGame, players);
+    const offer = game.titleSaleOffers[offerId];
+
+    if (!offer || offer.buyerId !== buyerId || offer.status !== 'pending') {
+      throw new Error('Proposta de venda nao encontrada.');
+    }
+
+    return toFirebaseValue({
+      ...game,
+      titleSaleOffers: {
+        ...game.titleSaleOffers,
+        [offerId]: {
+          ...offer,
+          status: 'cancelled',
+          cancelledAt: now,
+        },
+      },
+      updatedAt: now,
+    });
+  });
+
+  return update(ref(database, `rooms/${roomId}`), { updatedAt: Date.now() });
+}
+
+export async function createPlayerLoanOffer(
+  roomId: string,
+  borrowerId: string,
+  lenderId: string,
+  amount: number,
+) {
+  const room = await getRoom(roomId);
+
+  if (!room) {
+    throw new Error('Sala nao encontrada.');
+  }
+
+  const players = toPlayersArray(room.players);
+  const loanAmount = Number(amount);
+
+  if (borrowerId === lenderId) {
+    throw new Error('Selecione outro jogador para o emprestimo.');
+  }
+
+  if (!Number.isFinite(loanAmount) || loanAmount <= 0) {
+    throw new Error('Informe um valor de emprestimo valido.');
+  }
+
+  await runTransaction(ref(database, `rooms/${roomId}/game`), (currentGame?: GameState) => {
+    const now = Date.now();
+    const game = hydrateGameState(currentGame, players);
+    const borrower = players.find(
+      (player) => player.id === borrowerId && player.status !== 'eliminated',
+    );
+    const lender = players.find(
+      (player) => player.id === lenderId && player.status !== 'eliminated',
+    );
+
+    if (!borrower || !lender) {
+      throw new Error('Jogadores ativos nao encontrados.');
+    }
+
+    const projectedScore = calculateProjectedBankScore(game, borrowerId, loanAmount);
+
+    if (projectedScore <= 0) {
+      throw new Error('Emprestimo bloqueado: este valor levaria o jogador a falencia.');
+    }
+
+    const offerId = crypto.randomUUID();
+
+    return toFirebaseValue({
+      ...game,
+      playerLoanOffers: {
+        ...game.playerLoanOffers,
+        [offerId]: {
+          id: offerId,
+          borrowerId,
+          lenderId,
+          amount: loanAmount,
+          status: 'pending',
+          createdAt: now,
+        },
+      },
+      updatedAt: now,
+    });
+  });
+
+  return update(ref(database, `rooms/${roomId}`), { updatedAt: Date.now() });
+}
+
+export async function acceptPlayerLoanOffer(roomId: string, lenderId: string, offerId: string) {
+  const room = await getRoom(roomId);
+
+  if (!room) {
+    throw new Error('Sala nao encontrada.');
+  }
+
+  const players = toPlayersArray(room.players);
+
+  await runTransaction(ref(database, `rooms/${roomId}/game`), (currentGame?: GameState) => {
+    const now = Date.now();
+    const game = hydrateGameState(currentGame, players);
+    const offer = game.playerLoanOffers[offerId];
+
+    if (!offer || offer.lenderId !== lenderId || offer.status !== 'pending') {
+      throw new Error('Proposta de emprestimo nao encontrada.');
+    }
+
+    const borrowerFinance = game.playerFinances[offer.borrowerId];
+    const lenderFinance = game.playerFinances[lenderId];
+
+    if (!borrowerFinance || !lenderFinance) {
+      throw new Error('Financas dos jogadores nao encontradas.');
+    }
+
+    if (lenderFinance.balance < offer.amount) {
+      throw new Error('Saldo insuficiente para aceitar este emprestimo.');
+    }
+
+    const borrowerName =
+      players.find((player) => player.id === offer.borrowerId)?.name ?? 'jogador';
+    const lenderName = players.find((player) => player.id === lenderId)?.name ?? 'jogador';
+    const debt = createDebt(
+      {
+        kind: 'player-loan',
+        creditorId: lenderId,
+        debtorId: offer.borrowerId,
+        amount: offer.amount,
+        originalAmount: offer.amount,
+        createdAtRound: game.round,
+        sourceId: offer.id,
+        description: `Emprestimo de ${lenderName} para ${borrowerName}`,
+      },
+      now,
+    );
+    const nextBorrowerFinance = appendFinanceTransaction(
+      {
+        ...borrowerFinance,
+        balance: borrowerFinance.balance + offer.amount,
+        debts: {
+          ...borrowerFinance.debts,
+          [debt.id]: debt,
+        },
+      },
+      {
+        kind: 'player-loan-received',
+        amount: offer.amount,
+        round: game.round,
+        description: 'Emprestimo recebido de jogador',
+        relatedPlayerId: lenderId,
+      },
+      now,
+    );
+    const nextLenderFinance = appendFinanceTransaction(
+      {
+        ...lenderFinance,
+        balance: lenderFinance.balance - offer.amount,
+        receivables: {
+          ...lenderFinance.receivables,
+          [debt.id]: debt,
+        },
+      },
+      {
+        kind: 'player-loan-sent',
+        amount: -offer.amount,
+        round: game.round,
+        description: 'Emprestimo enviado a jogador',
+        relatedPlayerId: offer.borrowerId,
+      },
+      now,
+    );
+
+    return toFirebaseValue({
+      ...game,
+      playerLoanOffers: {
+        ...game.playerLoanOffers,
+        [offerId]: {
+          ...offer,
+          status: 'accepted',
+          acceptedAt: now,
+          debtId: debt.id,
+        },
+      },
+      playerFinances: {
+        ...game.playerFinances,
+        [offer.borrowerId]: nextBorrowerFinance,
+        [lenderId]: nextLenderFinance,
+      },
+      updatedAt: now,
+    });
+  });
+
+  return update(ref(database, `rooms/${roomId}`), { updatedAt: Date.now() });
+}
+
+export async function declinePlayerLoanOffer(roomId: string, playerId: string, offerId: string) {
+  const room = await getRoom(roomId);
+
+  if (!room) {
+    throw new Error('Sala nao encontrada.');
+  }
+
+  const players = toPlayersArray(room.players);
+
+  await runTransaction(ref(database, `rooms/${roomId}/game`), (currentGame?: GameState) => {
+    const now = Date.now();
+    const game = hydrateGameState(currentGame, players);
+    const offer = game.playerLoanOffers[offerId];
+
+    if (!offer || offer.status !== 'pending') {
+      throw new Error('Proposta de emprestimo nao encontrada.');
+    }
+
+    if (offer.lenderId !== playerId && offer.borrowerId !== playerId) {
+      throw new Error('Apenas os jogadores envolvidos podem recusar esta proposta.');
+    }
+
+    const status = offer.lenderId === playerId ? 'declined' : 'cancelled';
+
+    return toFirebaseValue({
+      ...game,
+      playerLoanOffers: {
+        ...game.playerLoanOffers,
+        [offerId]: {
+          ...offer,
+          status,
+          ...(status === 'declined' ? { declinedAt: now } : { cancelledAt: now }),
+        },
+      },
+      updatedAt: now,
+    });
+  });
+
+  return update(ref(database, `rooms/${roomId}`), { updatedAt: Date.now() });
+}
 export async function createTitleAuction(
   roomId: string,
   sellerId: string,
