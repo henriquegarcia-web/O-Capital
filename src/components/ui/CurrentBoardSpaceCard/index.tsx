@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
+﻿import { useMemo, useState } from 'react';
 import {
+  ArrowUpOutlined,
   BuildOutlined,
   DeleteOutlined,
   HomeOutlined,
@@ -23,7 +24,12 @@ import {
 import { buildTitleProperty, buyTitle, destroyTitleProperty } from '@/api';
 import { BOARD_SPACES_BY_INDEX, NEIGHBORHOODS, PROPERTY_BLUEPRINTS } from '@/constants';
 import type { GameState, Player } from '@/types';
-import { formatMoney, getAvailableBlueprintsForPropertySlot, getTitlePropertySlots } from '@/utils';
+import {
+  formatMoney,
+  getAvailableBlueprintsForPropertySlot,
+  getNextRealEstateBlueprintForSlot,
+  getTitlePropertySlots,
+} from '@/utils';
 
 type CurrentBoardSpaceCardProps = {
   roomId: string;
@@ -87,14 +93,20 @@ export function CurrentBoardSpaceCard({
     [selectedSlotProperty],
   );
   const hasAvailableBuildSlot = propertySlotItems.some(
-    (property) => getAvailableBlueprintsForPropertySlot(property).length > 0,
+    (property) => !property && getAvailableBlueprintsForPropertySlot(property).length > 0,
   );
   const propertyActionRound = title?.lastPropertyActionRound ?? title?.lastPropertyPurchaseRound;
   const selectedBlueprint = selectedBlueprintKey ? getBlueprint(selectedBlueprintKey) : undefined;
-  const neighborhoodName =
-    NEIGHBORHOODS.find((neighborhood) => neighborhood.key === boardSpace.neighborhoodKey)?.name ??
-    (isStreet ? 'Bairro' : boardSpace.name);
+  const neighborhood = NEIGHBORHOODS.find((item) => item.key === boardSpace.neighborhoodKey);
+  const neighborhoodName = neighborhood?.name ?? (isStreet ? 'Bairro' : boardSpace.name);
   const streetName = boardSpace.streetName ?? boardSpace.name;
+  const bonusBlueprints = PROPERTY_BLUEPRINTS.filter((blueprint) =>
+    neighborhood?.bonusTarget === 'business'
+      ? blueprint.category === 'business'
+      : blueprint.category === 'real-estate',
+  );
+  const bonusLabel =
+    neighborhood?.bonusTarget === 'business' ? 'Empreendimentos com bonus' : 'Imoveis com bonus';
   const buyBlockReason = !isStreet
     ? 'Esta casa nao possui titulo.'
     : title?.ownerId
@@ -111,7 +123,7 @@ export function CurrentBoardSpaceCard({
       : propertyActionRound === game.round
         ? 'Ja houve construcao ou destruicao neste titulo nesta rodada.'
         : !hasAvailableBuildSlot
-          ? 'Sem terrenos disponiveis para construcao ou evolucao.'
+          ? 'Sem terrenos vazios disponiveis para construcao.'
           : null;
   const status = isStreet
     ? ownerName
@@ -132,7 +144,7 @@ export function CurrentBoardSpaceCard({
 
   function openBuildModal() {
     const firstAvailableSlotIndex = propertySlotItems.findIndex(
-      (property) => getAvailableBlueprintsForPropertySlot(property).length > 0,
+      (property) => !property && getAvailableBlueprintsForPropertySlot(property).length > 0,
     );
 
     form.setFieldsValue({
@@ -227,17 +239,53 @@ export function CurrentBoardSpaceCard({
     });
   }
 
+  async function handleUpgradeProperty(slotIndex: number) {
+    const property = propertySlotItems[slotIndex];
+    const nextBlueprint = getNextRealEstateBlueprintForSlot(property);
+
+    if (!property || !nextBlueprint) return;
+
+    modal.confirm({
+      title: 'Confirmar upgrade',
+      content: `Evoluir para ${nextBlueprint.name} por ${formatMoney(nextBlueprint.constructionCost)}?`,
+      okText: 'Evoluir',
+      cancelText: 'Cancelar',
+      async onOk() {
+        try {
+          await buildTitleProperty(
+            roomId,
+            currentPlayer.id,
+            boardSpace.index,
+            nextBlueprint.key,
+            slotIndex,
+          );
+          message.success('Imovel evoluido com sucesso.');
+        } catch (error) {
+          message.error(
+            error instanceof Error ? error.message : 'Nao foi possivel evoluir o imovel.',
+          );
+        }
+      },
+    });
+  }
+
   return (
     <>
       <Card className="bank-app-card">
         <Space orientation="vertical" size={14} style={{ width: '100%' }}>
           <Flex
-            align="flex-start"
+            align="center"
             justify="space-between"
             gap={12}
             wrap
             className="bank-app-card-header"
           >
+            <Typography.Title level={4} className="bank-app-section-title">
+              Casa atual
+            </Typography.Title>
+          </Flex>
+
+          <div className="current-space-identity">
             <Flex align="center" gap={10} className="board-space-heading">
               <span
                 className="board-space-color"
@@ -259,7 +307,7 @@ export function CurrentBoardSpaceCard({
                 </Typography.Title>
               )}
             </Flex>
-          </Flex>
+          </div>
 
           <Descriptions bordered column={1} size="small">
             <Descriptions.Item label="Status">{status}</Descriptions.Item>
@@ -270,16 +318,36 @@ export function CurrentBoardSpaceCard({
             ) : null}
           </Descriptions>
 
+          {isStreet ? (
+            <div className="current-space-bonus">
+              <Flex align="center" justify="space-between" gap={10} wrap>
+                <Typography.Text type="secondary">Bonus do bairro</Typography.Text>
+                <Typography.Text strong>{bonusLabel}</Typography.Text>
+              </Flex>
+              <Typography.Text type="secondary" className="current-space-bonus__items">
+                {bonusBlueprints.map((blueprint) => blueprint.name).join(', ')}
+              </Typography.Text>
+            </div>
+          ) : null}
+
           {isStreet && title?.ownerId ? (
             <Space orientation="vertical" size={8} style={{ width: '100%' }}>
               {propertySlotItems.map((property, slotIndex) => {
                 const blueprint = property ? getBlueprint(property.blueprintKey) : undefined;
                 const propertyLabel = property?.optionName ?? blueprint?.name ?? 'Terreno vazio';
-                const canDestroy =
+                const nextUpgradeBlueprint = getNextRealEstateBlueprintForSlot(property);
+                const canActOnProperty =
                   isOwner &&
-                  property &&
                   title.acquiredAtRound !== game.round &&
                   propertyActionRound !== game.round;
+                const canUpgrade = Boolean(
+                  property &&
+                  blueprint?.category === 'real-estate' &&
+                  nextUpgradeBlueprint &&
+                  canActOnProperty &&
+                  (finance?.balance ?? 0) >= nextUpgradeBlueprint.constructionCost,
+                );
+                const canDestroy = Boolean(property && canActOnProperty);
 
                 return (
                   <Flex
@@ -300,20 +368,38 @@ export function CurrentBoardSpaceCard({
                         {blueprint?.category === 'business' ? <ShopOutlined /> : <HomeOutlined />}
                       </span>
                       <Space orientation="vertical" size={0}>
-                        <Typography.Text strong>{`Terreno ${slotIndex + 1}`}</Typography.Text>
-                        <Typography.Text type="secondary">{propertyLabel}</Typography.Text>
+                        <Typography.Text strong>{propertyLabel}</Typography.Text>
+                        <Typography.Text type="secondary">{`Terreno ${slotIndex + 1}`}</Typography.Text>
                       </Space>
                     </Flex>
                     {property ? (
-                      <Tooltip title="Destruir propriedade">
-                        <Button
-                          danger
-                          size="small"
-                          icon={<DeleteOutlined />}
-                          disabled={!canDestroy}
-                          onClick={() => handleDestroyProperty(property.id)}
-                        />
-                      </Tooltip>
+                      <Space.Compact>
+                        {blueprint?.category === 'real-estate' ? (
+                          <Tooltip
+                            title={
+                              nextUpgradeBlueprint
+                                ? `Evoluir para ${nextUpgradeBlueprint.name}`
+                                : 'Nivel maximo atingido'
+                            }
+                          >
+                            <Button
+                              size="small"
+                              icon={<ArrowUpOutlined />}
+                              disabled={!canUpgrade}
+                              onClick={() => handleUpgradeProperty(slotIndex)}
+                            />
+                          </Tooltip>
+                        ) : null}
+                        <Tooltip title="Destruir propriedade">
+                          <Button
+                            danger
+                            size="small"
+                            icon={<DeleteOutlined />}
+                            disabled={!canDestroy}
+                            onClick={() => handleDestroyProperty(property.id)}
+                          />
+                        </Tooltip>
+                      </Space.Compact>
                     ) : null}
                   </Flex>
                 );
@@ -389,7 +475,8 @@ export function CurrentBoardSpaceCard({
               options={propertySlotItems.map((property, slotIndex) => ({
                 value: slotIndex,
                 label: getSlotLabel(slotIndex),
-                disabled: getAvailableBlueprintsForPropertySlot(property).length === 0,
+                disabled:
+                  Boolean(property) || getAvailableBlueprintsForPropertySlot(property).length === 0,
               }))}
             />
           </Form.Item>

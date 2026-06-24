@@ -1,18 +1,22 @@
+import { useState } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
-import { Card, Result, Skeleton, Space, Typography } from 'antd';
+import { App, Card, Flex, Modal, Result, Skeleton, Space, Typography } from 'antd';
 
+import { confirmRoundPending } from '@/api';
 import { APP_HISTORY_MENU, APP_MENU_ITEMS, type AppMenuKey } from '@/constants';
 import {
   AppBottomNavigation,
   BankMenuPanel,
   BankerMatchControlCard,
   CurrentBoardSpaceCard,
+  HistoryMenuPanel,
   MatchControlCard,
   PlayerFinanceCard,
+  RankingMenuPanel,
   TitlesMenuPanel,
 } from '@/components/ui';
 import { useCurrentRoomPlayer, useRoom } from '@/hooks';
-import { hydrateGameState } from '@/utils';
+import { formatMoney, hydrateGameState } from '@/utils';
 
 function isValidMenuKey(menuKey: string | undefined): menuKey is AppMenuKey {
   if (!menuKey) {
@@ -38,9 +42,11 @@ function AppMenuPlaceholder({ title }: { title: string }) {
 }
 
 export function GamePlayersPage() {
+  const { message } = App.useApp();
   const { menuKey, roomId } = useParams();
   const { players, room, loading } = useRoom(roomId);
   const currentPlayer = useCurrentRoomPlayer(roomId, players);
+  const [confirmingStatement, setConfirmingStatement] = useState(false);
 
   if (!roomId) {
     return <Result status="404" title="Sala nao encontrada." />;
@@ -70,37 +76,69 @@ export function GamePlayersPage() {
     return <Result status="403" title="Apenas o banqueiro pode acessar este menu." />;
   }
 
-  const hydratedGame = hydrateGameState(room.game, players);
+  const activeRoom = room;
+  const activePlayer = currentPlayer;
+  const hydratedGame = hydrateGameState(activeRoom.game, players);
+  const statementPending = Object.values(hydratedGame.roundPendings ?? {}).find(
+    (pending) =>
+      pending.playerId === activePlayer.id &&
+      pending.status === 'pending' &&
+      pending.kind === 'statement',
+  );
+  const statementBreakdown = statementPending?.breakdown ?? {
+    receivables: 0,
+    maintenance: 0,
+    taxes: 0,
+    netAmount: 0,
+  };
+
+  async function handleConfirmStatement() {
+    if (!statementPending) return;
+
+    setConfirmingStatement(true);
+
+    try {
+      await confirmRoundPending(activeRoom.id, activePlayer.id, statementPending.id);
+      message.success('Prestacao de contas confirmada.');
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : 'Nao foi possivel confirmar.');
+    } finally {
+      setConfirmingStatement(false);
+    }
+  }
+
   const pageContent =
     menuKey === 'partida' ? (
       <Space orientation="vertical" size={16} style={{ width: '100%' }}>
-        <PlayerFinanceCard game={hydratedGame} currentPlayer={currentPlayer} />
-        <MatchControlCard room={room} players={players} currentPlayer={currentPlayer} />
+        <PlayerFinanceCard game={hydratedGame} currentPlayer={activePlayer} />
+        <MatchControlCard room={activeRoom} players={players} currentPlayer={activePlayer} />
         <CurrentBoardSpaceCard
           roomId={roomId}
           game={hydratedGame}
           players={players}
-          currentPlayer={currentPlayer}
+          currentPlayer={activePlayer}
         />
       </Space>
     ) : menuKey === 'banqueiro' ? (
-      <BankerMatchControlCard room={room} players={players} />
+      <BankerMatchControlCard room={activeRoom} players={players} />
     ) : menuKey === 'banco' ? (
       <BankMenuPanel
-        room={room}
+        room={activeRoom}
         game={hydratedGame}
         players={players}
-        currentPlayer={currentPlayer}
+        currentPlayer={activePlayer}
       />
     ) : menuKey === 'titulos' ? (
       <TitlesMenuPanel
-        room={room}
+        room={activeRoom}
         game={hydratedGame}
         players={players}
-        currentPlayer={currentPlayer}
+        currentPlayer={activePlayer}
       />
+    ) : menuKey === 'ranking' ? (
+      <RankingMenuPanel game={hydratedGame} players={players} />
     ) : menuKey === 'historico' ? (
-      <AppMenuPlaceholder title="Historico" />
+      <HistoryMenuPanel game={hydratedGame} players={players} currentPlayer={activePlayer} />
     ) : (
       <AppMenuPlaceholder
         title={APP_MENU_ITEMS.find((item) => item.key === menuKey)?.label ?? 'Aplicativo'}
@@ -110,11 +148,50 @@ export function GamePlayersPage() {
   return (
     <>
       {pageContent}
-      <AppBottomNavigation
-        activeMenuKey={menuKey}
-        playerRole={currentPlayer.role}
-        roomId={roomId}
-      />
+      <AppBottomNavigation activeMenuKey={menuKey} playerRole={activePlayer.role} roomId={roomId} />
+
+      <Modal
+        title="Prestacao de contas"
+        open={Boolean(statementPending)}
+        okText="Confirmar"
+        cancelButtonProps={{ style: { display: 'none' } }}
+        closable={false}
+        mask={{ closable: false }}
+        confirmLoading={confirmingStatement}
+        onOk={() => void handleConfirmStatement()}
+      >
+        <Space orientation="vertical" size={10} style={{ width: '100%' }}>
+          <Flex justify="space-between" gap={12}>
+            <Typography.Text type="secondary">Recebiveis</Typography.Text>
+            <Typography.Text strong className="bank-money--success">
+              {formatMoney(statementBreakdown.receivables)}
+            </Typography.Text>
+          </Flex>
+          <Flex justify="space-between" gap={12}>
+            <Typography.Text type="secondary">Manutencao</Typography.Text>
+            <Typography.Text strong className="bank-money--danger">
+              {formatMoney(statementBreakdown.maintenance)}
+            </Typography.Text>
+          </Flex>
+          <Flex justify="space-between" gap={12}>
+            <Typography.Text type="secondary">Impostos</Typography.Text>
+            <Typography.Text strong className="bank-money--danger">
+              {formatMoney(statementBreakdown.taxes)}
+            </Typography.Text>
+          </Flex>
+          <div className="bank-statement-total">
+            <Typography.Text type="secondary">Valor final</Typography.Text>
+            <Typography.Text
+              strong
+              className={
+                statementBreakdown.netAmount >= 0 ? 'bank-money--success' : 'bank-money--danger'
+              }
+            >
+              {formatMoney(statementBreakdown.netAmount)}
+            </Typography.Text>
+          </div>
+        </Space>
+      </Modal>
     </>
   );
 }

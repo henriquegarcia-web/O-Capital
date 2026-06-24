@@ -203,6 +203,17 @@ export function calculatePlayerNetWorth(game: GameState, playerId: string) {
   }, 0);
 }
 
+export function calculatePlayerFortune(game: GameState, playerId: string) {
+  const finance = game.playerFinances[playerId];
+
+  return (
+    (finance?.balance ?? 0) +
+    calculatePlayerNetWorth(game, playerId) +
+    calculateReceivableTotal(finance) -
+    calculateActiveDebtTotal(finance)
+  );
+}
+
 export function calculateTitleBuiltValue(title?: TitleOwnership) {
   return (title?.properties ?? []).reduce(
     (total, property) => total + getBuiltPropertyValue(property),

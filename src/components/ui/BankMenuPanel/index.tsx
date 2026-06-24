@@ -31,7 +31,6 @@ import type { ColumnsType } from 'antd/es/table';
 
 import {
   acceptPlayerLoanOffer,
-  confirmRoundPending,
   createPlayerLoanOffer,
   declinePlayerLoanOffer,
   forgiveReceivable,
@@ -101,16 +100,6 @@ export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPa
       ),
     [currentPlayer.id, game.taxPendings],
   );
-  const statementPending = useMemo(
-    () =>
-      Object.values(game.roundPendings ?? {}).find(
-        (pending) =>
-          pending.playerId === currentPlayer.id &&
-          pending.status === 'pending' &&
-          pending.kind === 'statement',
-      ),
-    [currentPlayer.id, game.roundPendings],
-  );
   const receivedLoanOffers = useMemo(
     () =>
       Object.values(game.playerLoanOffers ?? {}).filter(
@@ -150,13 +139,16 @@ export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPa
   const activeLoanCount = activeDebts.filter(
     (debt) => debt.kind === 'bank' || debt.kind === 'player-loan',
   ).length;
-  const statementBreakdown = statementPending?.breakdown ?? {
-    receivables: 0,
-    maintenance: 0,
-    taxes: 0,
-    netAmount: 0,
-  };
   const interestPercent = Math.round(BANK_LOAN_INTEREST_RATE * 100);
+
+  function renderPendingAccordionLabel(label: string, count: number) {
+    return (
+      <Flex align="center" justify="space-between" gap={10}>
+        <span>{label}</span>
+        <Tag color={count > 0 ? 'red' : 'green'}>{count}</Tag>
+      </Flex>
+    );
+  }
 
   async function runAction(action: () => Promise<unknown>, successMessage: string) {
     setLoadingAction(true);
@@ -699,28 +691,26 @@ export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPa
             label: 'Emprestimo do Banco',
             children: (
               <Space orientation="vertical" size={14} style={{ width: '100%' }}>
-                <div className="bank-loan-info">
-                  <Flex justify="space-between" gap={12}>
-                    <Typography.Text type="secondary">Limite total</Typography.Text>
-                    <Typography.Text strong>{formatMoney(creditLimit)}</Typography.Text>
-                  </Flex>
-                  <Flex justify="space-between" gap={12}>
-                    <Typography.Text type="secondary">Limite disponivel</Typography.Text>
-                    <Typography.Text strong>{formatMoney(availableCredit)}</Typography.Text>
-                  </Flex>
-                  <Flex justify="space-between" gap={12}>
-                    <Typography.Text type="secondary">Dividas ativas</Typography.Text>
-                    <Typography.Text strong>{formatMoney(activeDebtTotal)}</Typography.Text>
-                  </Flex>
-                  <Flex justify="space-between" gap={12}>
-                    <Typography.Text type="secondary">Taxa de juros</Typography.Text>
-                    <Typography.Text strong>{interestPercent}%</Typography.Text>
-                  </Flex>
-                  <Flex justify="space-between" gap={12}>
-                    <Typography.Text type="secondary">Total a pagar</Typography.Text>
-                    <Typography.Text strong>{formatMoney(loanDebtTotal)}</Typography.Text>
-                  </Flex>
-                </div>
+                <Flex justify="space-between" gap={12}>
+                  <Typography.Text type="secondary">Limite total</Typography.Text>
+                  <Typography.Text strong>{formatMoney(creditLimit)}</Typography.Text>
+                </Flex>
+                <Flex justify="space-between" gap={12}>
+                  <Typography.Text type="secondary">Limite disponivel</Typography.Text>
+                  <Typography.Text strong>{formatMoney(availableCredit)}</Typography.Text>
+                </Flex>
+                <Flex justify="space-between" gap={12}>
+                  <Typography.Text type="secondary">Dividas ativas</Typography.Text>
+                  <Typography.Text strong>{formatMoney(activeDebtTotal)}</Typography.Text>
+                </Flex>
+                <Flex justify="space-between" gap={12}>
+                  <Typography.Text type="secondary">Taxa de juros</Typography.Text>
+                  <Typography.Text strong>{interestPercent}%</Typography.Text>
+                </Flex>
+                <Flex justify="space-between" gap={12}>
+                  <Typography.Text type="secondary">Total a pagar</Typography.Text>
+                  <Typography.Text strong>{formatMoney(loanDebtTotal)}</Typography.Text>
+                </Flex>
                 {isProjectedPreBankruptcy ? (
                   <Alert
                     type="warning"
@@ -756,12 +746,12 @@ export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPa
                       rules={[{ required: true, message: 'Informe o valor.' }]}
                       style={{ flex: '1 1 180px', marginBottom: 0 }}
                     >
-                      <InputNumber
-                        min={1}
-                        precision={0}
-                        addonBefore="R$"
-                        style={{ width: '100%' }}
-                      />
+                      <Space.Compact style={{ width: '100%' }}>
+                        <Button disabled className="money-input-prefix">
+                          R$
+                        </Button>
+                        <InputNumber min={1} precision={0} style={{ width: '100%' }} />
+                      </Space.Compact>
                     </Form.Item>
                     <Button
                       type="primary"
@@ -835,12 +825,12 @@ export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPa
                       rules={[{ required: true, message: 'Informe o valor.' }]}
                       style={{ flex: '1 1 150px', marginBottom: 0 }}
                     >
-                      <InputNumber
-                        min={1}
-                        precision={0}
-                        addonBefore="R$"
-                        style={{ width: '100%' }}
-                      />
+                      <Space.Compact style={{ width: '100%' }}>
+                        <Button disabled className="money-input-prefix">
+                          R$
+                        </Button>
+                        <InputNumber min={1} precision={0} style={{ width: '100%' }} />
+                      </Space.Compact>
                     </Form.Item>
                     <Button
                       type="primary"
@@ -872,96 +862,68 @@ export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPa
         ]}
       />
 
-      <Card title="Dividas ativas" className="bank-app-card">
-        {screens.md ? (
-          <Table
-            rowKey="id"
-            size="small"
-            pagination={false}
-            columns={debtColumns}
-            dataSource={activeDebts}
-          />
-        ) : (
-          renderMobileDebtCards()
-        )}
-      </Card>
+      <Collapse
+        className="bank-app-card bank-section-collapse"
+        items={[
+          {
+            key: 'active-debts',
+            label: renderPendingAccordionLabel('Dividas ativas', activeDebts.length),
+            children: screens.md ? (
+              <Table
+                rowKey="id"
+                size="small"
+                pagination={false}
+                columns={debtColumns}
+                dataSource={activeDebts}
+              />
+            ) : (
+              renderMobileDebtCards()
+            ),
+          },
+        ]}
+      />
 
-      <Card title="Dividas a receber" className="bank-app-card">
-        {screens.md ? (
-          <Table
-            rowKey="id"
-            size="small"
-            pagination={false}
-            columns={receivableColumns}
-            dataSource={receivables}
-          />
-        ) : (
-          renderMobileReceivableCards()
-        )}
-      </Card>
+      <Collapse
+        className="bank-app-card bank-section-collapse"
+        items={[
+          {
+            key: 'receivables',
+            label: renderPendingAccordionLabel('Dividas a receber', receivables.length),
+            children: screens.md ? (
+              <Table
+                rowKey="id"
+                size="small"
+                pagination={false}
+                columns={receivableColumns}
+                dataSource={receivables}
+              />
+            ) : (
+              renderMobileReceivableCards()
+            ),
+          },
+        ]}
+      />
 
-      <Card title="Impostos pendentes" className="bank-app-card">
-        {screens.md ? (
-          <Table
-            rowKey="id"
-            size="small"
-            pagination={false}
-            columns={taxColumns}
-            dataSource={taxes}
-          />
-        ) : (
-          renderMobileTaxCards()
-        )}
-      </Card>
-
-      <Modal
-        title="Prestacao de contas"
-        open={Boolean(statementPending)}
-        okText="Confirmar"
-        cancelButtonProps={{ style: { display: 'none' } }}
-        closable={false}
-        maskClosable={false}
-        confirmLoading={loadingAction}
-        onOk={() => {
-          if (!statementPending) return;
-          void runAction(
-            () => confirmRoundPending(room.id, currentPlayer.id, statementPending.id),
-            'Prestacao de contas confirmada.',
-          );
-        }}
-      >
-        <Space orientation="vertical" size={10} style={{ width: '100%' }}>
-          <Flex justify="space-between" gap={12}>
-            <Typography.Text type="secondary">Recebiveis</Typography.Text>
-            <Typography.Text strong className="bank-money--success">
-              {formatMoney(statementBreakdown.receivables)}
-            </Typography.Text>
-          </Flex>
-          <Flex justify="space-between" gap={12}>
-            <Typography.Text type="secondary">Manutencao</Typography.Text>
-            <Typography.Text strong className="bank-money--danger">
-              {formatMoney(statementBreakdown.maintenance)}
-            </Typography.Text>
-          </Flex>
-          <Flex justify="space-between" gap={12}>
-            <Typography.Text type="secondary">Impostos</Typography.Text>
-            <Typography.Text strong className="bank-money--danger">
-              {formatMoney(statementBreakdown.taxes)}
-            </Typography.Text>
-          </Flex>
-          <div className="bank-statement-total">
-            <Typography.Text type="secondary">Valor final</Typography.Text>
-            <Typography.Text
-              strong
-              className={
-                statementBreakdown.netAmount >= 0 ? 'bank-money--success' : 'bank-money--danger'
-              }
-            >
-              {formatMoney(statementBreakdown.netAmount)}
-            </Typography.Text>
-          </div>
-        </Space>
-      </Modal>
+      <Collapse
+        className="bank-app-card bank-section-collapse"
+        items={[
+          {
+            key: 'taxes',
+            label: renderPendingAccordionLabel('Impostos pendentes', taxes.length),
+            children: screens.md ? (
+              <Table
+                rowKey="id"
+                size="small"
+                pagination={false}
+                columns={taxColumns}
+                dataSource={taxes}
+              />
+            ) : (
+              renderMobileTaxCards()
+            ),
+          },
+        ]}
+      />
 
       <Modal
         title="Pagar divida"
@@ -990,13 +952,17 @@ export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPa
             name="amount"
             rules={[{ required: true, message: 'Informe o valor.' }]}
           >
-            <InputNumber
-              min={1}
-              max={paymentState?.debt.amount}
-              precision={0}
-              addonBefore="R$"
-              style={{ width: '100%' }}
-            />
+            <Space.Compact style={{ width: '100%' }}>
+              <Button disabled className="money-input-prefix">
+                R$
+              </Button>
+              <InputNumber
+                min={1}
+                max={paymentState?.debt.amount}
+                precision={0}
+                style={{ width: '100%' }}
+              />
+            </Space.Compact>
           </Form.Item>
           {paymentState ? (
             <Button

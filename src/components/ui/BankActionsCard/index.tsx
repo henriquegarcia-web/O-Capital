@@ -101,14 +101,18 @@ export function BankActionsCard({ players, room }: BankActionsCardProps) {
                 rules={[{ required: true, message: 'Informe o valor.' }]}
                 className="bank-actions-card__field bank-actions-card__field--amount"
               >
-                <InputNumber
-                  min={1}
-                  precision={0}
-                  controls={false}
-                  addonBefore="R$"
-                  placeholder="0"
-                  style={{ width: '100%' }}
-                />
+                <Space.Compact style={{ width: '100%' }}>
+                  <Button disabled className="money-input-prefix">
+                    R$
+                  </Button>
+                  <InputNumber
+                    min={1}
+                    precision={0}
+                    controls={false}
+                    placeholder="0"
+                    style={{ width: '100%' }}
+                  />
+                </Space.Compact>
               </Form.Item>
             </Flex>
 

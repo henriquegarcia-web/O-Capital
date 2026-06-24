@@ -13,6 +13,7 @@ import {
   App,
   Button,
   Card,
+  Collapse,
   Col,
   Empty,
   Flex,
@@ -247,6 +248,15 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
           <Typography.Text type="secondary">Sem propriedades</Typography.Text>
         )}
       </Space>
+    );
+  }
+
+  function renderListAccordionLabel(label: string, count: number) {
+    return (
+      <Flex align="center" justify="space-between" gap={10}>
+        <span>{label}</span>
+        <Tag color="default">{count}</Tag>
+      </Flex>
     );
   }
 
@@ -593,51 +603,72 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
         </Space>
       </Card>
 
-      <Card title="Meus titulos" className="bank-app-card">
-        {screens.md ? (
-          <Table
-            rowKey="boardIndex"
-            size="small"
-            pagination={false}
-            columns={titleColumns}
-            dataSource={myTitles}
-            scroll={{ x: 740 }}
-            locale={{ emptyText: <Empty description="Nenhum titulo adquirido" /> }}
-          />
-        ) : (
-          renderMobileTitles()
-        )}
-      </Card>
+      <Collapse
+        className="bank-app-card bank-section-collapse"
+        items={[
+          {
+            key: 'my-titles',
+            label: renderListAccordionLabel('Meus titulos', myTitles.length),
+            children: screens.md ? (
+              <Table
+                rowKey="boardIndex"
+                size="small"
+                pagination={false}
+                columns={titleColumns}
+                dataSource={myTitles}
+                scroll={{ x: 740 }}
+                locale={{ emptyText: <Empty description="Nenhum titulo adquirido" /> }}
+              />
+            ) : (
+              renderMobileTitles()
+            ),
+          },
+        ]}
+      />
 
-      <Card title="Propostas recebidas" className="bank-app-card">
-        {screens.md ? (
-          <Table
-            rowKey="id"
-            size="small"
-            pagination={false}
-            columns={offerColumns}
-            dataSource={offersToMe}
-            locale={{ emptyText: <Empty description="Nenhuma proposta recebida" /> }}
-          />
-        ) : (
-          renderMobileOffers()
-        )}
-      </Card>
+      <Collapse
+        className="bank-app-card bank-section-collapse"
+        items={[
+          {
+            key: 'received-offers',
+            label: renderListAccordionLabel('Propostas recebidas', offersToMe.length),
+            children: screens.md ? (
+              <Table
+                rowKey="id"
+                size="small"
+                pagination={false}
+                columns={offerColumns}
+                dataSource={offersToMe}
+                locale={{ emptyText: <Empty description="Nenhuma proposta recebida" /> }}
+              />
+            ) : (
+              renderMobileOffers()
+            ),
+          },
+        ]}
+      />
 
-      <Card title="Leiloes abertos" className="bank-app-card">
-        {screens.md ? (
-          <Table
-            rowKey="id"
-            size="small"
-            pagination={false}
-            columns={auctionColumns}
-            dataSource={openAuctions}
-            locale={{ emptyText: <Empty description="Nenhum leilao aberto" /> }}
-          />
-        ) : (
-          renderMobileAuctions()
-        )}
-      </Card>
+      <Collapse
+        className="bank-app-card bank-section-collapse"
+        items={[
+          {
+            key: 'open-auctions',
+            label: renderListAccordionLabel('Leiloes abertos', openAuctions.length),
+            children: screens.md ? (
+              <Table
+                rowKey="id"
+                size="small"
+                pagination={false}
+                columns={auctionColumns}
+                dataSource={openAuctions}
+                locale={{ emptyText: <Empty description="Nenhum leilao aberto" /> }}
+              />
+            ) : (
+              renderMobileAuctions()
+            ),
+          },
+        ]}
+      />
 
       <Modal
         title="Venda direta"
@@ -683,7 +714,12 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
             label="Valor solicitado"
             rules={[{ required: true, message: 'Informe o valor.' }]}
           >
-            <InputNumber min={1} precision={0} addonBefore="R$" style={{ width: '100%' }} />
+            <Space.Compact style={{ width: '100%' }}>
+              <Button disabled className="money-input-prefix">
+                R$
+              </Button>
+              <InputNumber min={1} precision={0} style={{ width: '100%' }} />
+            </Space.Compact>
           </Form.Item>
         </Form>
       </Modal>
@@ -721,7 +757,12 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
             label="Lance inicial"
             rules={[{ required: true, message: 'Informe o lance inicial.' }]}
           >
-            <InputNumber min={1} precision={0} addonBefore="R$" style={{ width: '100%' }} />
+            <Space.Compact style={{ width: '100%' }}>
+              <Button disabled className="money-input-prefix">
+                R$
+              </Button>
+              <InputNumber min={1} precision={0} style={{ width: '100%' }} />
+            </Space.Compact>
           </Form.Item>
         </Form>
       </Modal>
@@ -753,7 +794,12 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
             label="Valor da oferta"
             rules={[{ required: true, message: 'Informe a oferta.' }]}
           >
-            <InputNumber min={1} precision={0} addonBefore="R$" style={{ width: '100%' }} />
+            <Space.Compact style={{ width: '100%' }}>
+              <Button disabled className="money-input-prefix">
+                R$
+              </Button>
+              <InputNumber min={1} precision={0} style={{ width: '100%' }} />
+            </Space.Compact>
           </Form.Item>
         </Form>
       </Modal>
