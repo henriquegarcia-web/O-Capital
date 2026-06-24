@@ -1,6 +1,7 @@
 import {
   BOARD_SIZE,
   BOARD_SPACES_BY_INDEX,
+  GAME_BALANCE,
   NEIGHBORHOODS,
   PROPERTY_BLUEPRINTS,
   START_SPACE_INDEX,
@@ -17,16 +18,16 @@ import type {
   TitleOwnership,
 } from '@/types';
 
-export const INITIAL_PLAYER_BALANCE = 10000;
-export const BANK_LOAN_INTEREST_RATE = 0.2;
-export const BANK_LOAN_BASE_LIMIT = 5000;
-export const BANK_LOAN_LIMIT_STEP = 1000;
-export const BANK_LOAN_LIMIT_PATRIMONY_STEP = 5000;
-export const BANK_LOAN_MIN_SCORE = 50;
-export const LOCALITY_BONUS_RATE = 0.2;
-export const FEDERAL_TAX_REFUND_RATE = 0.1;
-export const FEDERAL_TAX_FINE_RATE = 0.5;
-export const BANK_SETTLEMENT_DISCOUNT_RATE = 0.2;
+export const INITIAL_PLAYER_BALANCE = GAME_BALANCE.economy.initialPlayerBalance;
+export const BANK_LOAN_INTEREST_RATE = GAME_BALANCE.bank.loanInterestRate;
+export const BANK_LOAN_BASE_LIMIT = GAME_BALANCE.bank.loanBaseLimit;
+export const BANK_LOAN_LIMIT_STEP = GAME_BALANCE.bank.loanLimitStep;
+export const BANK_LOAN_LIMIT_PATRIMONY_STEP = GAME_BALANCE.bank.loanLimitPatrimonyStep;
+export const BANK_LOAN_MIN_SCORE = GAME_BALANCE.bank.loanMinScore;
+export const LOCALITY_BONUS_RATE = GAME_BALANCE.economy.localityBonusRate;
+export const FEDERAL_TAX_REFUND_RATE = GAME_BALANCE.taxes.federalRefundRate;
+export const FEDERAL_TAX_FINE_RATE = GAME_BALANCE.taxes.federalFineRate;
+export const BANK_SETTLEMENT_DISCOUNT_RATE = GAME_BALANCE.bank.settlementDiscountRate;
 
 export function getActivePlayers(players: Player[]) {
   return players.filter((player) => player.status !== 'eliminated');
@@ -382,7 +383,7 @@ export function calculatePlayerRentIncome(game: GameState, playerId: string) {
 export function calculateTitleMaintenance(title: TitleOwnership) {
   const baseValue = getTitleLandValue(title) + calculateTitleBuiltValue(title);
 
-  return Math.round(baseValue * 0.05);
+  return Math.round(baseValue * GAME_BALANCE.economy.titleMaintenanceRate);
 }
 
 export function calculatePlayerRoundExpenses(game: GameState, playerId: string) {
@@ -408,7 +409,12 @@ export function calculateScoreFromDebt(game: GameState, playerId: string, totalD
     return 0;
   }
 
-  return Math.max(0, Math.round(100 - (totalDebt / creditLimit) * 100));
+  return Math.max(
+    0,
+    Math.round(
+      GAME_BALANCE.bank.score.max - (totalDebt / creditLimit) * GAME_BALANCE.bank.score.max,
+    ),
+  );
 }
 
 export function calculateBankScore(game: GameState, playerId: string) {
@@ -436,14 +442,10 @@ export function calculateProjectedBankScore(
 }
 
 export function getBankScoreLabel(score: number) {
-  if (score >= 81) return 'Excelente';
-  if (score >= 61) return 'Boa';
-  if (score >= 41) return 'Atencao';
-  if (score >= 26) return 'Risco';
-  if (score >= 11) return 'Critico';
-  if (score >= 1) return 'Pre-falencia';
-
-  return 'Falencia';
+  return (
+    GAME_BALANCE.bank.score.labels.find((item) => score >= item.min)?.label ??
+    GAME_BALANCE.bank.score.labels[GAME_BALANCE.bank.score.labels.length - 1].label
+  );
 }
 
 export function calculateTitleTax(game: GameState, title: TitleOwnership) {
@@ -482,7 +484,13 @@ export function calculatePendingTaxTotal(game: GameState, playerId: string) {
 export function calculateTitleBankSaleValue(game: GameState, title: TitleOwnership) {
   const baseValue = getTitleLandValue(title) + calculateTitleBuiltValue(title);
 
-  return Math.round(baseValue * Math.pow(1.02, Math.max(0, game.round - 1)));
+  return Math.round(
+    baseValue *
+      Math.pow(
+        1 + GAME_BALANCE.economy.titleBankSaleGrowthRatePerRound,
+        Math.max(0, game.round - 1),
+      ),
+  );
 }
 
 export function didPassStart(currentPosition: number, nextPosition: number, spacesToMove: number) {
@@ -562,7 +570,10 @@ export function getNextRealEstateBlueprint(properties: BuiltProperty[] = []) {
   );
 }
 
-export function getTitlePropertySlots(properties: BuiltProperty[] = [], slotCount = 3) {
+export function getTitlePropertySlots(
+  properties: BuiltProperty[] = [],
+  slotCount: number = GAME_BALANCE.board.defaultPropertySlots,
+) {
   const slots: Array<BuiltProperty | null> = Array.from({ length: slotCount }, () => null);
 
   properties.forEach((property) => {

@@ -32,7 +32,13 @@ import {
   payDebtWithBankDiscount,
   payTaxPendingWithBankDiscount,
 } from '@/api';
-import { BOARD_SPACES_BY_INDEX, NEIGHBORHOODS, PROPERTY_BLUEPRINTS } from '@/constants';
+import {
+  BOARD_SPACES_BY_INDEX,
+  GAME_BALANCE,
+  NEIGHBORHOODS,
+  PROPERTY_BLUEPRINTS,
+  formatBalanceRate,
+} from '@/constants';
 import type { GameState, Player, PlayerDebt, TaxPending } from '@/types';
 import {
   calculateBankSettlementAmount,
@@ -95,7 +101,7 @@ export function CurrentBoardSpaceCard({
   const finance = game.playerFinances[currentPlayer.id];
   const landValue = boardSpace.landValue ?? 0;
   const properties = title?.properties ?? EMPTY_PROPERTIES;
-  const propertySlots = boardSpace.propertySlots ?? 3;
+  const propertySlots = boardSpace.propertySlots ?? GAME_BALANCE.board.defaultPropertySlots;
   const propertySlotItems = useMemo(
     () => getTitlePropertySlots(properties, propertySlots),
     [properties, propertySlots],
@@ -146,8 +152,14 @@ export function CurrentBoardSpaceCard({
   const neighborhoodName = neighborhood?.name ?? (isStreet ? 'Bairro' : boardSpace.name);
   const streetName = boardSpace.streetName ?? boardSpace.name;
   const bonusLabel = neighborhood?.bonusTarget === 'business' ? 'Empreendimentos' : 'Imoveis';
+  const localityBonusPercent = formatBalanceRate(GAME_BALANCE.economy.localityBonusRate);
+  const federalFinePercent = formatBalanceRate(GAME_BALANCE.taxes.federalFineRate);
+  const federalRefundPercent = formatBalanceRate(GAME_BALANCE.taxes.federalRefundRate);
+  const bankDiscountPercent = formatBalanceRate(GAME_BALANCE.bank.settlementDiscountRate);
   const bonusBaseLabel =
-    neighborhood?.bonusTarget === 'business' ? '20% sobre recebiveis' : '20% sobre alugueis';
+    neighborhood?.bonusTarget === 'business'
+      ? `${localityBonusPercent} sobre recebiveis`
+      : `${localityBonusPercent} sobre alugueis`;
   const buyBlockReason = !isCurrentPlayerTurn
     ? 'A compra fica disponivel apenas na sua vez de jogar.'
     : !isStreet
@@ -328,7 +340,9 @@ export function CurrentBoardSpaceCard({
           </Flex>
           <Flex justify="space-between" gap={12}>
             <Typography.Text type="secondary">
-              {hasPendingTaxes ? 'Multa de 50%' : 'Bonus de 10%'}
+              {hasPendingTaxes
+                ? `Multa de ${federalFinePercent}`
+                : `Bonus de ${federalRefundPercent}`}
             </Typography.Text>
             <Typography.Text
               strong
@@ -496,8 +510,8 @@ export function CurrentBoardSpaceCard({
                 showIcon
                 title={
                   federalTaxAudit.pendingTaxTotal > 0
-                    ? 'Foram encontrados impostos pendentes. A multa sera de 50% sobre o total.'
-                    : 'Impostos em dia. O jogador recebe restituicao de 10% sobre o patrimonio em propriedades.'
+                    ? `Foram encontrados impostos pendentes. A multa sera de ${federalFinePercent} sobre o total.`
+                    : `Impostos em dia. O jogador recebe restituicao de ${federalRefundPercent} sobre o patrimonio em propriedades.`
                 }
               />
               <Descriptions bordered column={1} size="small">
@@ -508,7 +522,11 @@ export function CurrentBoardSpaceCard({
                   {formatMoney(federalTaxAudit.pendingTaxTotal)}
                 </Descriptions.Item>
                 <Descriptions.Item
-                  label={federalTaxAudit.pendingTaxTotal > 0 ? 'Multa 50%' : 'Bonus 10%'}
+                  label={
+                    federalTaxAudit.pendingTaxTotal > 0
+                      ? `Multa ${federalFinePercent}`
+                      : `Bonus ${federalRefundPercent}`
+                  }
                 >
                   {formatMoney(
                     federalTaxAudit.pendingTaxTotal > 0
@@ -540,7 +558,7 @@ export function CurrentBoardSpaceCard({
               <Alert
                 type="info"
                 showIcon
-                title="A casa Banco permite quitar dividas elegiveis e impostos pendentes com 20% de desconto. Emprestimos entre jogadores nao entram."
+                title={`A casa Banco permite quitar dividas elegiveis e impostos pendentes com ${bankDiscountPercent} de desconto. Emprestimos entre jogadores nao entram.`}
               />
               {[...eligibleBankDebts, ...bankTaxPendings].length === 0 ? (
                 <Typography.Text type="secondary">

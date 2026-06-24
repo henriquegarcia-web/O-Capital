@@ -3,6 +3,7 @@ import { App, Button, Card, Descriptions, Flex, Space, Tag, Typography } from 'a
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { finishPlayerTurn, rollPlayerDice } from '@/api';
+import { GAME_BALANCE } from '@/constants';
 import type { GameState, Player, Room } from '@/types';
 import { hydrateGameState } from '@/utils';
 
@@ -27,7 +28,7 @@ const GAME_STATUS_LABELS: Record<GameState['status'], string> = {
 };
 
 function rollDie() {
-  return Math.floor(Math.random() * 6) + 1;
+  return Math.floor(Math.random() * GAME_BALANCE.board.dice.sides) + GAME_BALANCE.board.dice.min;
 }
 
 const DICE_OVERLAY_CLOSE_DELAY_MS = 3800;

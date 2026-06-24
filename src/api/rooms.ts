@@ -13,6 +13,7 @@ import {
 import {
   BOARD_SPACES_BY_INDEX,
   EVENT_CARDS,
+  GAME_BALANCE,
   GAME_LIMITS,
   GLOBAL_EVENT_CARDS,
   PROPERTY_BLUEPRINTS,
@@ -1655,7 +1656,7 @@ export async function buildTitleProperty(
     const title = game.titles[titleKey];
     const playerFinance = game.playerFinances[playerId];
     const properties = title?.properties ?? [];
-    const propertySlots = boardSpace?.propertySlots ?? 3;
+    const propertySlots = boardSpace?.propertySlots ?? GAME_BALANCE.board.defaultPropertySlots;
     const slots = getTitlePropertySlots(properties, propertySlots);
     const currentSlotProperty = slots[slotIndex];
     const currentSlotBlueprint = currentSlotProperty
@@ -2549,8 +2550,12 @@ export async function rollPlayerDice(
   }
 
   const players = toPlayersArray(room.players);
-  const diceOne = diceResult?.diceOne ?? Math.floor(Math.random() * 6) + 1;
-  const diceTwo = diceResult?.diceTwo ?? Math.floor(Math.random() * 6) + 1;
+  const diceOne =
+    diceResult?.diceOne ??
+    Math.floor(Math.random() * GAME_BALANCE.board.dice.sides) + GAME_BALANCE.board.dice.min;
+  const diceTwo =
+    diceResult?.diceTwo ??
+    Math.floor(Math.random() * GAME_BALANCE.board.dice.sides) + GAME_BALANCE.board.dice.min;
   const now = Date.now();
   const roll: DiceRoll = {
     playerId,

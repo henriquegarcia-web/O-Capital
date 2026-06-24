@@ -1,0 +1,300 @@
+import type { BoardSpace, Neighborhood, PropertyBlueprint } from '@/types';
+
+export const GAME_BALANCE = {
+  players: {
+    minPlayers: 2,
+    maxPlayers: 6,
+  },
+  board: {
+    size: 40,
+    startSpaceIndex: 1,
+    defaultPropertySlots: 3,
+    dice: {
+      min: 1,
+      sides: 6,
+      count: 2,
+    },
+  },
+  economy: {
+    initialPlayerBalance: 10000,
+    localityBonusRate: 0.2,
+    titleMaintenanceRate: 0.05,
+    titleBankSaleGrowthRatePerRound: 0.02,
+  },
+  bank: {
+    loanInterestRate: 0.2,
+    loanBaseLimit: 5000,
+    loanLimitStep: 1000,
+    loanLimitPatrimonyStep: 5000,
+    loanMinScore: 50,
+    settlementDiscountRate: 0.2,
+    score: {
+      max: 100,
+      labels: [
+        { min: 81, label: 'Excelente' },
+        { min: 61, label: 'Boa' },
+        { min: 41, label: 'Atencao' },
+        { min: 26, label: 'Risco' },
+        { min: 11, label: 'Critico' },
+        { min: 1, label: 'Pre-falencia' },
+        { min: 0, label: 'Falencia' },
+      ],
+    },
+  },
+  taxes: {
+    federalRefundRate: 0.1,
+    federalFineRate: 0.5,
+  },
+  neighborhoods: [
+    { key: 'ponta-negra', name: 'Ponta Negra', color: '#00A6D6', bonusTarget: 'real-estate' },
+    { key: 'capim-macio', name: 'Capim Macio', color: '#39BFA7', bonusTarget: 'business' },
+    { key: 'lagoa-nova', name: 'Lagoa Nova', color: '#F28C28', bonusTarget: 'business' },
+    { key: 'candelaria', name: 'Candelaria', color: '#7B4DFF', bonusTarget: 'real-estate' },
+    { key: 'tirol', name: 'Tirol', color: '#D4AF37', bonusTarget: 'real-estate' },
+    { key: 'alecrim', name: 'Alecrim', color: '#D62828', bonusTarget: 'business' },
+    { key: 'cidade-alta', name: 'Cidade Alta', color: '#9C6644', bonusTarget: 'business' },
+  ] satisfies Neighborhood[],
+  propertyBlueprints: [
+    {
+      key: 'flat',
+      name: 'Flat',
+      category: 'real-estate',
+      level: 1,
+      constructionCost: 5000,
+      maintenanceCost: 500,
+      maintenanceIntervalRounds: 5,
+      rent: 1500,
+      taxRate: 0.1,
+    },
+    {
+      key: 'casa',
+      name: 'Casa',
+      category: 'real-estate',
+      level: 2,
+      constructionCost: 10000,
+      maintenanceCost: 1000,
+      maintenanceIntervalRounds: 5,
+      rent: 2500,
+      taxRate: 0.1,
+    },
+    {
+      key: 'pousada',
+      name: 'Pousada',
+      category: 'real-estate',
+      level: 3,
+      constructionCost: 25000,
+      maintenanceCost: 2500,
+      maintenanceIntervalRounds: 5,
+      rent: 5000,
+      taxRate: 0.1,
+    },
+    {
+      key: 'hotel',
+      name: 'Hotel',
+      category: 'real-estate',
+      level: 4,
+      constructionCost: 50000,
+      maintenanceCost: 5000,
+      maintenanceIntervalRounds: 5,
+      rent: 12000,
+      taxRate: 0.1,
+    },
+    {
+      key: 'comercio-alimentos',
+      name: 'Comercio de Alimentos',
+      category: 'business',
+      constructionCost: 20000,
+      maintenanceCost: 2000,
+      maintenanceIntervalRounds: 5,
+      dividendsPerRound: 4000,
+      taxRate: 0.15,
+      options: ['Sorveteria', 'Restaurante Tradicional', 'Pizzaria', 'Hamburgueria', 'Sushi'],
+    },
+    {
+      key: 'loja',
+      name: 'Loja',
+      category: 'business',
+      constructionCost: 40000,
+      maintenanceCost: 4000,
+      maintenanceIntervalRounds: 5,
+      dividendsPerRound: 8000,
+      taxRate: 0.15,
+      options: ['Pesca', 'Roupas', 'Calcados', 'Joias', 'Eletronica'],
+    },
+    {
+      key: 'grande-empreendimento',
+      name: 'Grande Empreendimento',
+      category: 'business',
+      constructionCost: 60000,
+      maintenanceCost: 6000,
+      maintenanceIntervalRounds: 5,
+      dividendsPerRound: 12000,
+      taxRate: 0.15,
+      options: ['Mercado', 'Shopping', 'Aluguel de Carros', 'Cinema'],
+    },
+  ] satisfies PropertyBlueprint[],
+  boardSpaces: [
+    { index: 1, name: 'Inicio', kind: 'start', color: '#1f7a5f' },
+    { index: 2, neighborhoodKey: 'cidade-alta', streetName: 'Av. Rio Branco', landValue: 2000 },
+    { index: 3, neighborhoodKey: 'cidade-alta', streetName: 'Rua Joao Pessoa', landValue: 2500 },
+    {
+      index: 4,
+      neighborhoodKey: 'cidade-alta',
+      streetName: 'Av. Deodoro da Fonseca',
+      landValue: 3000,
+    },
+    {
+      index: 5,
+      neighborhoodKey: 'cidade-alta',
+      streetName: 'Av. Camara Cascudo',
+      landValue: 3500,
+    },
+    { index: 6, name: 'Evento', kind: 'event', color: '#64748b' },
+    { index: 7, neighborhoodKey: 'lagoa-nova', streetName: 'Av. Amintas Barros', landValue: 6500 },
+    { index: 8, neighborhoodKey: 'lagoa-nova', streetName: 'Av. Lima e Silva', landValue: 6000 },
+    {
+      index: 9,
+      neighborhoodKey: 'lagoa-nova',
+      streetName: 'Av. Senador Salgado Filho',
+      landValue: 4500,
+    },
+    {
+      index: 10,
+      neighborhoodKey: 'lagoa-nova',
+      streetName: 'Av. Prudente de Morais',
+      landValue: 5000,
+    },
+    {
+      index: 11,
+      neighborhoodKey: 'lagoa-nova',
+      streetName: 'Av. Bernardo Vieira',
+      landValue: 5500,
+    },
+    { index: 12, name: 'Embargo Fiscal', kind: 'fiscal-embargo', color: '#b91c1c' },
+    {
+      index: 13,
+      neighborhoodKey: 'alecrim',
+      streetName: 'Av. Alexandrino de Alencar',
+      landValue: 4500,
+    },
+    {
+      index: 14,
+      neighborhoodKey: 'alecrim',
+      streetName: 'Av. Presidente Quaresma',
+      landValue: 4000,
+    },
+    {
+      index: 15,
+      neighborhoodKey: 'alecrim',
+      streetName: 'Av. Presidente Bandeira',
+      landValue: 3000,
+    },
+    { index: 16, name: 'Mercado de Vantagens', kind: 'advantage-market', color: '#7c3aed' },
+    {
+      index: 17,
+      neighborhoodKey: 'alecrim',
+      streetName: 'Av. Coronel Estevam',
+      landValue: 3500,
+    },
+    { index: 18, name: 'Evento', kind: 'event', color: '#64748b' },
+    { index: 19, neighborhoodKey: 'tirol', streetName: 'Av. Hermes da Fonseca', landValue: 8500 },
+    { index: 20, neighborhoodKey: 'tirol', streetName: 'Av. Campos Sales', landValue: 10500 },
+    { index: 21, name: 'Feriado', kind: 'holiday', color: '#0f766e' },
+    { index: 22, neighborhoodKey: 'tirol', streetName: 'Av. Afonso Pena', landValue: 9500 },
+    { index: 23, name: 'Banco', kind: 'bank', color: '#2563eb' },
+    { index: 24, neighborhoodKey: 'capim-macio', streetName: 'Av. Santos Dumont', landValue: 7000 },
+    { index: 25, neighborhoodKey: 'capim-macio', streetName: 'Av. dos Geranios' },
+    {
+      index: 26,
+      neighborhoodKey: 'capim-macio',
+      streetName: 'Rua Ismael Pereira da Silva',
+      landValue: 6500,
+    },
+    { index: 27, neighborhoodKey: 'capim-macio', streetName: 'Av. das Alagoas', landValue: 6000 },
+    { index: 28, neighborhoodKey: 'capim-macio', streetName: 'Av. Ayrton Senna', landValue: 5500 },
+    { index: 29, name: 'Evento Global', kind: 'global-event', color: '#ea580c' },
+    { index: 30, neighborhoodKey: 'candelaria', streetName: 'Av. Integracao', landValue: 8000 },
+    { index: 31, neighborhoodKey: 'candelaria', streetName: 'Av. dos Xavantes', landValue: 8500 },
+    { index: 32, name: 'Bloqueio Bancario', kind: 'bank-block', color: '#991b1b' },
+    { index: 33, neighborhoodKey: 'candelaria', streetName: 'Av. Jaguarari', landValue: 7500 },
+    {
+      index: 34,
+      neighborhoodKey: 'candelaria',
+      streetName: 'Av. Prudente de Morais',
+      landValue: 7000,
+    },
+    {
+      index: 35,
+      neighborhoodKey: 'ponta-negra',
+      streetName: 'Av. Engenheiro Roberto Freire',
+      landValue: 12000,
+    },
+    { index: 36, neighborhoodKey: 'ponta-negra', streetName: 'Rua Manoel Congo', landValue: 9000 },
+    {
+      index: 37,
+      neighborhoodKey: 'ponta-negra',
+      streetName: 'Rua Praia de Muriu',
+      landValue: 10000,
+    },
+    { index: 38, name: 'Receita Federal', kind: 'tax', color: '#334155' },
+    {
+      index: 39,
+      neighborhoodKey: 'ponta-negra',
+      streetName: 'Rua Erivan Franca',
+      landValue: 11000,
+    },
+    { index: 40, neighborhoodKey: 'ponta-negra', streetName: 'Rua da Floresta', landValue: 8000 },
+  ],
+  eventCards: [
+    { key: 'event-1', message: 'Evento de sorte inicial.', tone: 'luck', amount: 1000 },
+    { key: 'event-2', message: 'Evento de reves inicial.', tone: 'setback', amount: 1000 },
+    { key: 'event-3', message: 'Evento de sorte inicial.', tone: 'luck', amount: 1500 },
+  ],
+  globalEventCards: [
+    {
+      key: 'global-event-1',
+      message: 'Evento global de sorte inicial.',
+      tone: 'luck',
+      amount: 1000,
+    },
+    {
+      key: 'global-event-2',
+      message: 'Evento global de reves inicial.',
+      tone: 'setback',
+      amount: 1000,
+    },
+    {
+      key: 'global-event-3',
+      message: 'Evento global de sorte inicial.',
+      tone: 'luck',
+      amount: 1500,
+    },
+  ],
+} as const;
+
+const neighborhoodByKey = Object.fromEntries(
+  GAME_BALANCE.neighborhoods.map((neighborhood) => [neighborhood.key, neighborhood]),
+);
+
+export const BALANCED_BOARD_SPACES = GAME_BALANCE.boardSpaces.map((space) => {
+  if (!('neighborhoodKey' in space) || !space.neighborhoodKey) {
+    return space as BoardSpace;
+  }
+
+  const neighborhood = neighborhoodByKey[space.neighborhoodKey];
+
+  return {
+    index: space.index,
+    name: `${neighborhood.name} - ${space.streetName}`,
+    kind: 'street',
+    color: neighborhood.color,
+    neighborhoodKey: space.neighborhoodKey,
+    streetName: space.streetName,
+    landValue: 'landValue' in space ? space.landValue : undefined,
+    propertySlots: GAME_BALANCE.board.defaultPropertySlots,
+  } satisfies BoardSpace;
+});
+
+export function formatBalanceRate(rate: number) {
+  return `${Math.round(rate * 100)}%`;
+}
