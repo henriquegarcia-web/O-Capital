@@ -1,9 +1,9 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 import { App, Card, Flex, Modal, Result, Skeleton, Space, Typography } from 'antd';
 
 import { confirmRoundPending } from '@/api';
-import { APP_HISTORY_MENU, APP_MENU_ITEMS, type AppMenuKey } from '@/constants';
+import { APP_HISTORY_MENU, APP_MENU_ITEMS, APP_RANKING_MENU, type AppMenuKey } from '@/constants';
 import {
   AppBottomNavigation,
   BankMenuPanel,
@@ -23,7 +23,11 @@ function isValidMenuKey(menuKey: string | undefined): menuKey is AppMenuKey {
     return false;
   }
 
-  return APP_MENU_ITEMS.some((item) => item.key === menuKey) || APP_HISTORY_MENU.key === menuKey;
+  return (
+    APP_MENU_ITEMS.some((item) => item.key === menuKey) ||
+    APP_HISTORY_MENU.key === menuKey ||
+    APP_RANKING_MENU.key === menuKey
+  );
 }
 
 function AppMenuPlaceholder({ title }: { title: string }) {
@@ -79,27 +83,41 @@ export function GamePlayersPage() {
   const activeRoom = room;
   const activePlayer = currentPlayer;
   const hydratedGame = hydrateGameState(activeRoom.game, players);
-  const statementPending = Object.values(hydratedGame.roundPendings ?? {}).find(
+  const pendingToConfirm = Object.values(hydratedGame.roundPendings ?? {}).find(
     (pending) =>
       pending.playerId === activePlayer.id &&
       pending.status === 'pending' &&
-      pending.kind === 'statement',
+      ['statement', 'rent', 'event', 'global-event'].includes(pending.kind),
   );
-  const statementBreakdown = statementPending?.breakdown ?? {
-    receivables: 0,
-    maintenance: 0,
-    taxes: 0,
-    netAmount: 0,
-  };
+  const rentPending = pendingToConfirm?.kind === 'rent' ? pendingToConfirm : undefined;
+  const eventPending =
+    pendingToConfirm?.kind === 'event' || pendingToConfirm?.kind === 'global-event'
+      ? pendingToConfirm
+      : undefined;
+  const statementBreakdown =
+    pendingToConfirm?.kind === 'statement' && pendingToConfirm.breakdown
+      ? pendingToConfirm.breakdown
+      : {
+          receivables: 0,
+          maintenance: 0,
+          taxes: 0,
+          netAmount: 0,
+        };
 
-  async function handleConfirmStatement() {
-    if (!statementPending) return;
+  async function handleConfirmPending() {
+    if (!pendingToConfirm) return;
 
     setConfirmingStatement(true);
 
     try {
-      await confirmRoundPending(activeRoom.id, activePlayer.id, statementPending.id);
-      message.success('Prestacao de contas confirmada.');
+      await confirmRoundPending(activeRoom.id, activePlayer.id, pendingToConfirm.id);
+      message.success(
+        pendingToConfirm.kind === 'statement'
+          ? 'Prestacao de contas confirmada.'
+          : pendingToConfirm.kind === 'rent'
+            ? 'Aluguel pago.'
+            : 'Evento confirmado.',
+      );
     } catch (error) {
       message.error(error instanceof Error ? error.message : 'Nao foi possivel confirmar.');
     } finally {
@@ -136,7 +154,7 @@ export function GamePlayersPage() {
         currentPlayer={activePlayer}
       />
     ) : menuKey === 'ranking' ? (
-      <RankingMenuPanel game={hydratedGame} players={players} />
+      <RankingMenuPanel game={hydratedGame} players={players} currentPlayer={activePlayer} />
     ) : menuKey === 'historico' ? (
       <HistoryMenuPanel game={hydratedGame} players={players} currentPlayer={activePlayer} />
     ) : (
@@ -151,45 +169,90 @@ export function GamePlayersPage() {
       <AppBottomNavigation activeMenuKey={menuKey} playerRole={activePlayer.role} roomId={roomId} />
 
       <Modal
-        title="Prestacao de contas"
-        open={Boolean(statementPending)}
+        title={
+          pendingToConfirm?.kind === 'rent'
+            ? 'Pagamento de aluguel'
+            : eventPending
+              ? eventPending.kind === 'global-event'
+                ? 'Evento global'
+                : 'Evento'
+              : 'Prestacao de contas'
+        }
+        open={Boolean(pendingToConfirm)}
         okText="Confirmar"
         cancelButtonProps={{ style: { display: 'none' } }}
         closable={false}
         mask={{ closable: false }}
         confirmLoading={confirmingStatement}
-        onOk={() => void handleConfirmStatement()}
+        onOk={() => void handleConfirmPending()}
       >
         <Space orientation="vertical" size={10} style={{ width: '100%' }}>
-          <Flex justify="space-between" gap={12}>
-            <Typography.Text type="secondary">Recebiveis</Typography.Text>
-            <Typography.Text strong className="bank-money--success">
-              {formatMoney(statementBreakdown.receivables)}
-            </Typography.Text>
-          </Flex>
-          <Flex justify="space-between" gap={12}>
-            <Typography.Text type="secondary">Manutencao</Typography.Text>
-            <Typography.Text strong className="bank-money--danger">
-              {formatMoney(statementBreakdown.maintenance)}
-            </Typography.Text>
-          </Flex>
-          <Flex justify="space-between" gap={12}>
-            <Typography.Text type="secondary">Impostos</Typography.Text>
-            <Typography.Text strong className="bank-money--danger">
-              {formatMoney(statementBreakdown.taxes)}
-            </Typography.Text>
-          </Flex>
-          <div className="bank-statement-total">
-            <Typography.Text type="secondary">Valor final</Typography.Text>
-            <Typography.Text
-              strong
-              className={
-                statementBreakdown.netAmount >= 0 ? 'bank-money--success' : 'bank-money--danger'
-              }
-            >
-              {formatMoney(statementBreakdown.netAmount)}
-            </Typography.Text>
-          </div>
+          {rentPending ? (
+            <>
+              <Typography.Text>
+                Voce se hospedou na propriedade de{' '}
+                <Typography.Text strong>
+                  {players.find((player) => player.id === rentPending.relatedPlayerId)?.name ??
+                    'outro jogador'}
+                </Typography.Text>{' '}
+                e devera pagar aluguel.
+              </Typography.Text>
+              <div className="bank-statement-total">
+                <Typography.Text type="secondary">Valor do aluguel</Typography.Text>
+                <Typography.Text strong className="bank-money--danger">
+                  {formatMoney(rentPending.amount)}
+                </Typography.Text>
+              </div>
+            </>
+          ) : eventPending ? (
+            <>
+              <Typography.Text>{eventPending.message}</Typography.Text>
+              <div className="bank-statement-total">
+                <Typography.Title
+                  level={4}
+                  style={{ margin: 0 }}
+                  className={
+                    eventPending.eventTone === 'luck' ? 'bank-money--success' : 'bank-money--danger'
+                  }
+                >
+                  {eventPending.eventTone === 'luck' ? '+ ' : '- '}
+                  {formatMoney(eventPending.amount)}
+                </Typography.Title>
+              </div>
+            </>
+          ) : (
+            <>
+              <Flex justify="space-between" gap={12}>
+                <Typography.Text type="secondary">Recebiveis</Typography.Text>
+                <Typography.Text strong className="bank-money--success">
+                  {formatMoney(statementBreakdown.receivables)}
+                </Typography.Text>
+              </Flex>
+              <Flex justify="space-between" gap={12}>
+                <Typography.Text type="secondary">Manutencao</Typography.Text>
+                <Typography.Text strong className="bank-money--danger">
+                  {formatMoney(statementBreakdown.maintenance)}
+                </Typography.Text>
+              </Flex>
+              <Flex justify="space-between" gap={12}>
+                <Typography.Text type="secondary">Impostos</Typography.Text>
+                <Typography.Text strong className="bank-money--danger">
+                  {formatMoney(statementBreakdown.taxes)}
+                </Typography.Text>
+              </Flex>
+              <div className="bank-statement-total">
+                <Typography.Text type="secondary">Valor final</Typography.Text>
+                <Typography.Text
+                  strong
+                  className={
+                    statementBreakdown.netAmount >= 0 ? 'bank-money--success' : 'bank-money--danger'
+                  }
+                >
+                  {formatMoney(statementBreakdown.netAmount)}
+                </Typography.Text>
+              </div>
+            </>
+          )}
         </Space>
       </Modal>
     </>

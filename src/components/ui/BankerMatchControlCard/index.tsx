@@ -7,18 +7,7 @@ import {
   ReloadOutlined,
   StopOutlined,
 } from '@ant-design/icons';
-import {
-  App,
-  Button,
-  Card,
-  Flex,
-  Form,
-  Input,
-  Space,
-  Table,
-  Tag,
-  Typography,
-} from 'antd';
+import { App, Button, Card, Flex, Form, Input, Space, Table, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -93,7 +82,12 @@ export function BankerMatchControlCard({ players, room }: BankerMatchControlCard
     }
   }
 
-  function confirmAction(title: string, content: string, action: () => Promise<unknown>, successMessage: string) {
+  function confirmAction(
+    title: string,
+    content: string,
+    action: () => Promise<unknown>,
+    successMessage: string,
+  ) {
     modal.confirm({
       title,
       content,
@@ -133,7 +127,7 @@ export function BankerMatchControlCard({ players, room }: BankerMatchControlCard
           <Form.Item
             label="Senha de confirmacao"
             name="password"
-            rules={[{ required: true, message: 'Informe a senha de confirmacao.' }]}
+            rules={[{ required: true, message: '' }]}
           >
             <Input.Password autoComplete="current-password" />
           </Form.Item>
@@ -304,7 +298,13 @@ export function BankerMatchControlCard({ players, room }: BankerMatchControlCard
 
       <Card className="bank-app-card">
         <Space orientation="vertical" size={14} style={{ width: '100%' }}>
-          <Flex align="center" justify="space-between" gap={12} wrap className="bank-app-card-header">
+          <Flex
+            align="center"
+            justify="space-between"
+            gap={12}
+            wrap
+            className="bank-app-card-header"
+          >
             <Typography.Title level={4} style={{ margin: 0 }}>
               Configuracoes
             </Typography.Title>
@@ -327,7 +327,7 @@ export function BankerMatchControlCard({ players, room }: BankerMatchControlCard
               <Form.Item
                 label="Nome da sala"
                 name="name"
-                rules={[{ required: true, min: 3, message: 'Informe pelo menos 3 caracteres.' }]}
+                rules={[{ required: true, min: 3, message: '' }]}
                 style={{ flex: '1 1 220px', marginBottom: 0 }}
               >
                 <Input />

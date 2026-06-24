@@ -4,7 +4,7 @@ import {
   HistoryOutlined,
   PlayCircleOutlined,
   ReconciliationOutlined,
-  RiseOutlined,
+  RocketOutlined,
   TrophyOutlined,
 } from '@ant-design/icons';
 
@@ -23,18 +23,18 @@ export const APP_MENU_ITEMS = [
   },
   {
     key: 'titulos',
-    label: 'Títulos',
+    label: 'Titulos',
     icon: ReconciliationOutlined,
   },
   {
-    key: 'missoes',
-    label: 'Missões',
-    icon: TrophyOutlined,
+    key: 'acoes',
+    label: 'Acoes',
+    icon: RocketOutlined,
   },
   {
-    key: 'ranking',
-    label: 'Ranking',
-    icon: RiseOutlined,
+    key: 'missoes',
+    label: 'Missoes',
+    icon: TrophyOutlined,
   },
   {
     key: 'banqueiro',
@@ -46,8 +46,17 @@ export const APP_MENU_ITEMS = [
 
 export const APP_HISTORY_MENU = {
   key: 'historico',
-  label: 'Histórico',
+  label: 'Historico',
   icon: HistoryOutlined,
 } as const;
 
-export type AppMenuKey = (typeof APP_MENU_ITEMS)[number]['key'] | typeof APP_HISTORY_MENU.key;
+export const APP_RANKING_MENU = {
+  key: 'ranking',
+  label: 'Ranking',
+  icon: TrophyOutlined,
+} as const;
+
+export type AppMenuKey =
+  | (typeof APP_MENU_ITEMS)[number]['key']
+  | typeof APP_HISTORY_MENU.key
+  | typeof APP_RANKING_MENU.key;

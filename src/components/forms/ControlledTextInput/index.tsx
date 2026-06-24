@@ -18,11 +18,7 @@ export function ControlledTextInput<TFieldValues extends FieldValues>({
       control={control}
       name={name}
       render={({ field, fieldState }) => (
-        <Form.Item
-          label={label}
-          validateStatus={fieldState.error ? 'error' : undefined}
-          help={fieldState.error?.message}
-        >
+        <Form.Item label={label} validateStatus={fieldState.error ? 'error' : undefined}>
           <Input {...field} {...inputProps} />
         </Form.Item>
       )}

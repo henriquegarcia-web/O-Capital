@@ -1,4 +1,4 @@
-import { zodResolver } from '@hookform/resolvers/zod';
+﻿import { zodResolver } from '@hookform/resolvers/zod';
 import { PlusOutlined } from '@ant-design/icons';
 import { App, Button, Card, Flex, Form, Space, Typography } from 'antd';
 import { useForm } from 'react-hook-form';
@@ -15,14 +15,15 @@ export function RoomCreateCard({ loading, onCreate }: RoomCreateCardProps) {
   const { modal } = App.useApp();
   const {
     control,
-    formState: { isValid },
+    formState: { isSubmitting },
     handleSubmit,
     reset,
   } = useForm<CreateRoomInput>({
     defaultValues: {
       name: '',
     },
-    mode: 'onChange',
+    mode: 'onSubmit',
+    reValidateMode: 'onSubmit',
     resolver: zodResolver(createRoomSchema),
   });
 
@@ -54,8 +55,7 @@ export function RoomCreateCard({ loading, onCreate }: RoomCreateCardProps) {
             <Button
               type="primary"
               htmlType="submit"
-              loading={loading}
-              disabled={!isValid}
+              loading={loading || isSubmitting}
               block
               icon={<PlusOutlined />}
             >

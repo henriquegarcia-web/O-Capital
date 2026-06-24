@@ -83,7 +83,7 @@ export function BankActionsCard({ players, room }: BankActionsCardProps) {
               <Form.Item
                 label="Destino"
                 name="playerId"
-                rules={[{ required: true, message: 'Selecione o jogador de destino.' }]}
+                rules={[{ required: true, message: '' }]}
                 className="bank-actions-card__field bank-actions-card__field--player"
               >
                 <Select
@@ -98,7 +98,7 @@ export function BankActionsCard({ players, room }: BankActionsCardProps) {
               <Form.Item
                 label="Valor"
                 name="amount"
-                rules={[{ required: true, message: 'Informe o valor.' }]}
+                rules={[{ required: true, message: '' }]}
                 className="bank-actions-card__field bank-actions-card__field--amount"
               >
                 <Space.Compact style={{ width: '100%' }}>
@@ -120,8 +120,8 @@ export function BankActionsCard({ players, room }: BankActionsCardProps) {
               label="Motivo"
               name="reason"
               rules={[
-                { required: true, message: 'Informe o motivo.' },
-                { min: 3, message: 'Informe pelo menos 3 caracteres.' },
+                { required: true, message: '' },
+                { min: 3, message: '' },
               ]}
               className="bank-actions-card__field bank-actions-card__field--full"
             >
@@ -131,7 +131,7 @@ export function BankActionsCard({ players, room }: BankActionsCardProps) {
             <Form.Item
               label="Acao"
               name="action"
-              rules={[{ required: true, message: 'Selecione a acao.' }]}
+              rules={[{ required: true, message: '' }]}
               className="bank-actions-card__field bank-actions-card__field--full"
             >
               <Segmented

@@ -107,7 +107,8 @@ export type PlayerTransactionKind =
   | 'property-destroy'
   | 'rent-paid'
   | 'rent-received'
-  | 'debt-created';
+  | 'debt-created'
+  | 'event';
 
 export type PlayerTransaction = {
   id: string;
@@ -136,6 +137,7 @@ export type TitleOwnership = {
   properties?: BuiltProperty[];
   lastPropertyPurchaseRound?: number;
   lastPropertyActionRound?: number;
+  lastPropertyActionTurnStartedAt?: number | null;
 };
 
 export type TaxPendingStatus = 'pending' | 'paid';
@@ -154,7 +156,15 @@ export type TaxPending = {
 };
 
 export type RoundPendingStatus = 'pending' | 'confirmed';
-export type RoundPendingKind = 'dividends' | 'maintenance' | 'taxes' | 'statement';
+export type RoundPendingKind =
+  | 'dividends'
+  | 'maintenance'
+  | 'taxes'
+  | 'statement'
+  | 'rent'
+  | 'event'
+  | 'global-event';
+export type EventTone = 'luck' | 'setback';
 
 export type RoundPending = {
   id: string;
@@ -163,6 +173,11 @@ export type RoundPending = {
   amount: number;
   round: number;
   titleRefs?: number[];
+  relatedPlayerId?: string;
+  affectedPlayerIds?: string[];
+  boardIndex?: number;
+  message?: string;
+  eventTone?: EventTone;
   breakdown?: {
     receivables: number;
     maintenance: number;

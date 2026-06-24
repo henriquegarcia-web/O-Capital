@@ -25,7 +25,7 @@ export function PlayerJoinCard({
 }: PlayerJoinCardProps) {
   const {
     control,
-    formState: { isValid },
+    formState: { isSubmitting },
     handleSubmit,
     reset,
   } = useForm<CreatePlayerInput>({
@@ -34,7 +34,8 @@ export function PlayerJoinCard({
       photoKey: PROFILE_PHOTOS[0]?.key,
       colorKey: PROFILE_COLORS.find((color) => !disabledColorKeys.includes(color.key))?.key,
     },
-    mode: 'onChange',
+    mode: 'onSubmit',
+    reValidateMode: 'onSubmit',
     resolver: zodResolver(createPlayerSchema),
   });
 
@@ -64,7 +65,7 @@ export function PlayerJoinCard({
             label="Cor do perfil"
             disabledColorKeys={disabledColorKeys}
           />
-          <Button type="primary" htmlType="submit" loading={loading} disabled={!isValid} block>
+          <Button type="primary" htmlType="submit" loading={loading || isSubmitting} block>
             Entrar
           </Button>
         </Flex>

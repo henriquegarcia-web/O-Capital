@@ -98,7 +98,8 @@ export function CurrentBoardSpaceCard({
   const hasAvailableBuildSlot = propertySlotItems.some(
     (property) => !property && getAvailableBlueprintsForPropertySlot(property).length > 0,
   );
-  const propertyActionRound = title?.lastPropertyActionRound ?? title?.lastPropertyPurchaseRound;
+  const propertyActionTurnStartedAt = title?.lastPropertyActionTurnStartedAt;
+  const isCurrentPlayerTurn = game.turnPlayerId === currentPlayer.id;
   const selectedBlueprint = selectedBlueprintKey ? getBlueprint(selectedBlueprintKey) : undefined;
   const neighborhood = NEIGHBORHOODS.find((item) => item.key === boardSpace.neighborhoodKey);
   const neighborhoodName = neighborhood?.name ?? (isStreet ? 'Bairro' : boardSpace.name);
@@ -119,11 +120,13 @@ export function CurrentBoardSpaceCard({
     ? 'Apenas o dono pode construir.'
     : title?.acquiredAtRound === game.round
       ? 'Construcao disponivel apenas a partir da proxima rodada.'
-      : propertyActionRound === game.round
-        ? 'Ja houve construcao ou destruicao neste titulo nesta rodada.'
-        : !hasAvailableBuildSlot
-          ? 'Sem terrenos vazios disponiveis para construcao.'
-          : null;
+      : !isCurrentPlayerTurn
+        ? 'Acoes de propriedade disponiveis apenas na sua vez.'
+        : propertyActionTurnStartedAt === game.turnStartedAt
+          ? 'Ja houve construcao, destruicao ou evolucao neste titulo nesta vez.'
+          : !hasAvailableBuildSlot
+            ? 'Sem terrenos vazios disponiveis para construcao.'
+            : null;
   const status = isStreet
     ? ownerName
       ? `${ownerName} e dono desse terreno`
@@ -356,7 +359,8 @@ export function CurrentBoardSpaceCard({
                 const canActOnProperty =
                   isOwner &&
                   title.acquiredAtRound !== game.round &&
-                  propertyActionRound !== game.round;
+                  isCurrentPlayerTurn &&
+                  propertyActionTurnStartedAt !== game.turnStartedAt;
                 const canUpgrade = Boolean(
                   property &&
                   blueprint?.category === 'real-estate' &&
@@ -474,11 +478,7 @@ export function CurrentBoardSpaceCard({
         onOk={() => form.submit()}
       >
         <Form form={form} layout="vertical" onFinish={handleBuildProperty}>
-          <Form.Item
-            name="slotIndex"
-            label="Terreno"
-            rules={[{ required: true, message: 'Selecione um terreno.' }]}
-          >
+          <Form.Item name="slotIndex" label="Terreno" rules={[{ required: true, message: '' }]}>
             <Select
               placeholder="Selecione"
               onChange={() => {
@@ -498,7 +498,7 @@ export function CurrentBoardSpaceCard({
           <Form.Item
             name="blueprintKey"
             label="Propriedade"
-            rules={[{ required: true, message: 'Selecione uma propriedade.' }]}
+            rules={[{ required: true, message: '' }]}
           >
             <Select
               placeholder="Selecione"
@@ -515,11 +515,7 @@ export function CurrentBoardSpaceCard({
           </Form.Item>
 
           {selectedBlueprint?.options?.length ? (
-            <Form.Item
-              name="optionName"
-              label="Tipo"
-              rules={[{ required: true, message: 'Selecione o tipo do empreendimento.' }]}
-            >
+            <Form.Item name="optionName" label="Tipo" rules={[{ required: true, message: '' }]}>
               <Select
                 placeholder="Selecione"
                 options={selectedBlueprint.options.map((option) => ({

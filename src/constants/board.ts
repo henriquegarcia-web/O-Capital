@@ -163,3 +163,20 @@ export const BOARD_SPACES: BoardSpace[] = [
 export const BOARD_SPACES_BY_INDEX = Object.fromEntries(
   BOARD_SPACES.map((space) => [space.index, space]),
 ) as Record<number, BoardSpace>;
+
+export const EVENT_CARDS = [
+  { key: 'event-1', message: 'Evento de sorte inicial.', tone: 'luck', amount: 1000 },
+  { key: 'event-2', message: 'Evento de reves inicial.', tone: 'setback', amount: 1000 },
+  { key: 'event-3', message: 'Evento de sorte inicial.', tone: 'luck', amount: 1500 },
+] as const;
+
+export const GLOBAL_EVENT_CARDS = [
+  { key: 'global-event-1', message: 'Evento global de sorte inicial.', tone: 'luck', amount: 1000 },
+  {
+    key: 'global-event-2',
+    message: 'Evento global de reves inicial.',
+    tone: 'setback',
+    amount: 1000,
+  },
+  { key: 'global-event-3', message: 'Evento global de sorte inicial.', tone: 'luck', amount: 1500 },
+] as const;

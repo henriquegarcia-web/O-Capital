@@ -2,12 +2,13 @@ import {
   AppstoreOutlined,
   ArrowLeftOutlined,
   HistoryOutlined,
+  TrophyOutlined,
   LogoutOutlined,
 } from '@ant-design/icons';
 import { Button, Flex, Layout, Typography } from 'antd';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 
-import { APP_HISTORY_MENU, APP_MENU_ITEMS } from '@/constants';
+import { APP_HISTORY_MENU, APP_MENU_ITEMS, APP_RANKING_MENU } from '@/constants';
 import { clearCurrentRoomPlayerId } from '@/utils';
 
 const { Header, Content } = Layout;
@@ -25,8 +26,11 @@ function getHeaderCenter(pathname: string) {
 
   if (menuKey) {
     const menu =
-      APP_MENU_ITEMS.find((item) => item.key === menuKey) ??
-      (APP_HISTORY_MENU.key === menuKey ? APP_HISTORY_MENU : null);
+      (APP_MENU_ITEMS.find((item) => item.key === menuKey) ?? APP_HISTORY_MENU.key === menuKey)
+        ? APP_HISTORY_MENU
+        : APP_RANKING_MENU.key === menuKey
+          ? APP_RANKING_MENU
+          : null;
 
     return menu?.label ?? 'Aplicativo';
   }
@@ -105,12 +109,20 @@ export function AppLayout() {
 
             <div className="app-layout__header-side app-layout__header-side--right">
               {isBottomNavigatorMenu && roomId ? (
-                <Button
-                  type="text"
-                  icon={<HistoryOutlined />}
-                  aria-label="Historico"
-                  onClick={() => navigate(`/rooms/${roomId}/app/${APP_HISTORY_MENU.key}`)}
-                />
+                <Flex align="center" gap={2}>
+                  <Button
+                    type="text"
+                    icon={<HistoryOutlined />}
+                    aria-label="Historico"
+                    onClick={() => navigate(`/rooms/${roomId}/app/${APP_HISTORY_MENU.key}`)}
+                  />
+                  <Button
+                    type="text"
+                    icon={<TrophyOutlined />}
+                    aria-label="Ranking"
+                    onClick={() => navigate(`/rooms/${roomId}/app/${APP_RANKING_MENU.key}`)}
+                  />
+                </Flex>
               ) : isRoomDetails && roomId ? (
                 <Button
                   type="text"

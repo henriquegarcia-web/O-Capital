@@ -719,11 +719,7 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
             );
           }}
         >
-          <Form.Item
-            name="buyerId"
-            label="Comprador"
-            rules={[{ required: true, message: 'Selecione o comprador.' }]}
-          >
+          <Form.Item name="buyerId" label="Comprador" rules={[{ required: true, message: '' }]}>
             <Select
               placeholder="Selecione"
               options={activePlayers.map((player) => ({ value: player.id, label: player.name }))}
@@ -732,7 +728,7 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
           <Form.Item
             name="amount"
             label="Valor solicitado"
-            rules={[{ required: true, message: 'Informe o valor.' }]}
+            rules={[{ required: true, message: '' }]}
           >
             <Space.Compact style={{ width: '100%' }}>
               <Button disabled className="money-input-prefix">
@@ -775,7 +771,7 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
           <Form.Item
             name="initialBid"
             label="Lance inicial"
-            rules={[{ required: true, message: 'Informe o lance inicial.' }]}
+            rules={[{ required: true, message: '' }]}
           >
             <Space.Compact style={{ width: '100%' }}>
               <Button disabled className="money-input-prefix">
@@ -812,7 +808,7 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
           <Form.Item
             name="amount"
             label="Valor da oferta"
-            rules={[{ required: true, message: 'Informe a oferta.' }]}
+            rules={[{ required: true, message: '' }]}
           >
             <Space.Compact style={{ width: '100%' }}>
               <Button disabled className="money-input-prefix">

@@ -10,7 +10,13 @@ import {
   update,
 } from 'firebase/database';
 
-import { BOARD_SPACES_BY_INDEX, GAME_LIMITS, PROPERTY_BLUEPRINTS } from '@/constants';
+import {
+  BOARD_SPACES_BY_INDEX,
+  EVENT_CARDS,
+  GAME_LIMITS,
+  GLOBAL_EVENT_CARDS,
+  PROPERTY_BLUEPRINTS,
+} from '@/constants';
 import { database } from '@/firebase';
 import type { CreatePlayerInput, CreateRoomInput } from '@/schemas';
 import type {
@@ -149,7 +155,12 @@ function updateDebtMirrors(
   };
 }
 
-function settleRentForPosition(game: GameState, playerId: string, boardIndex: number, now: number) {
+function createRentPendingForPosition(
+  game: GameState,
+  playerId: string,
+  boardIndex: number,
+  now: number,
+) {
   const title = game.titles[String(boardIndex)];
   const ownerId = title?.ownerId;
 
@@ -163,17 +174,57 @@ function settleRentForPosition(game: GameState, playerId: string, boardIndex: nu
     return game;
   }
 
+  const alreadyPending = Object.values(game.roundPendings ?? {}).some(
+    (pending) =>
+      pending.status === 'pending' &&
+      pending.kind === 'rent' &&
+      pending.playerId === playerId &&
+      pending.relatedPlayerId === ownerId &&
+      pending.boardIndex === boardIndex,
+  );
+
+  if (alreadyPending) {
+    return game;
+  }
+
+  const pendingId = crypto.randomUUID();
+
+  return {
+    ...game,
+    roundPendings: {
+      ...game.roundPendings,
+      [pendingId]: {
+        id: pendingId,
+        playerId,
+        relatedPlayerId: ownerId,
+        kind: 'rent' as const,
+        amount: rentAmount,
+        round: game.round,
+        boardIndex,
+        status: 'pending' as const,
+        createdAt: now,
+      },
+    },
+  };
+}
+
+function applyRentPayment(
+  game: GameState,
+  playerId: string,
+  ownerId: string,
+  boardIndex: number,
+  rentAmount: number,
+  now: number,
+) {
   const debtorFinance = game.playerFinances[playerId];
   const creditorFinance = game.playerFinances[ownerId];
 
   if (!debtorFinance || !creditorFinance) {
-    return game;
+    throw new Error('Financas do aluguel nao encontradas.');
   }
 
   const paidAmount = Math.min(debtorFinance.balance, rentAmount);
   const pendingAmount = rentAmount - paidAmount;
-  const debtorName = 'Aluguel pago';
-  const creditorName = 'Aluguel recebido';
   let nextDebtorFinance: PlayerFinance = {
     ...debtorFinance,
     balance: debtorFinance.balance - paidAmount,
@@ -192,7 +243,7 @@ function settleRentForPosition(game: GameState, playerId: string, boardIndex: nu
         kind: 'rent-paid',
         amount: -paidAmount,
         round: game.round,
-        description: debtorName,
+        description: 'Aluguel pago',
         relatedPlayerId: ownerId,
         boardIndex,
       },
@@ -204,7 +255,7 @@ function settleRentForPosition(game: GameState, playerId: string, boardIndex: nu
         kind: 'rent-received',
         amount: paidAmount,
         round: game.round,
-        description: creditorName,
+        description: 'Aluguel recebido',
         relatedPlayerId: playerId,
         boardIndex,
       },
@@ -214,19 +265,18 @@ function settleRentForPosition(game: GameState, playerId: string, boardIndex: nu
 
   if (pendingAmount > 0) {
     const debtId = crypto.randomUUID();
-    const debt = {
-      id: debtId,
-      kind: 'rent' as const,
-      creditorId: ownerId,
-      debtorId: playerId,
-      amount: pendingAmount,
-      originalAmount: pendingAmount,
-      boardIndex,
-      description: `Aluguel pendente da casa ${boardIndex}`,
-      status: 'active' as const,
-      createdAt: now,
-      updatedAt: now,
-    };
+    const debt = createDebt(
+      {
+        kind: 'rent',
+        creditorId: ownerId,
+        debtorId: playerId,
+        amount: pendingAmount,
+        originalAmount: pendingAmount,
+        boardIndex,
+        description: 'Aluguel pendente da casa ' + boardIndex,
+      },
+      now,
+    );
 
     nextDebtorFinance = appendFinanceTransaction(
       {
@@ -252,7 +302,6 @@ function settleRentForPosition(game: GameState, playerId: string, boardIndex: nu
         ...nextCreditorFinance.receivables,
         [debtId]: debt,
       },
-      updatedAt: now,
     };
   }
 
@@ -263,6 +312,88 @@ function settleRentForPosition(game: GameState, playerId: string, boardIndex: nu
       [playerId]: nextDebtorFinance,
       [ownerId]: nextCreditorFinance,
     },
+  };
+}
+
+function createEventPendingForPosition(
+  game: GameState,
+  playerId: string,
+  boardIndex: number,
+  players: Player[],
+  now: number,
+) {
+  const boardSpace = BOARD_SPACES_BY_INDEX[boardIndex];
+  const cards = boardSpace?.kind === 'global-event' ? GLOBAL_EVENT_CARDS : EVENT_CARDS;
+
+  if (boardSpace?.kind !== 'event' && boardSpace?.kind !== 'global-event') {
+    return game;
+  }
+
+  const card = cards[Math.abs(now + boardIndex + game.round) % cards.length];
+  const pendingId = crypto.randomUUID();
+  const isGlobal = boardSpace.kind === 'global-event';
+
+  return {
+    ...game,
+    roundPendings: {
+      ...game.roundPendings,
+      [pendingId]: {
+        id: pendingId,
+        playerId,
+        affectedPlayerIds: isGlobal
+          ? players.filter((player) => player.status !== 'eliminated').map((player) => player.id)
+          : [playerId],
+        kind: boardSpace.kind,
+        amount: card.amount,
+        round: game.round,
+        boardIndex,
+        message: card.message,
+        eventTone: card.tone,
+        status: 'pending' as const,
+        createdAt: now,
+      },
+    },
+  };
+}
+
+function applyEventPending(game: GameState, pendingId: string, now: number) {
+  const pending = game.roundPendings[pendingId];
+
+  if (!pending?.eventTone) {
+    throw new Error('Evento nao encontrado.');
+  }
+
+  const affectedPlayerIds = pending.affectedPlayerIds?.length
+    ? pending.affectedPlayerIds
+    : [pending.playerId];
+  const signedAmount = pending.eventTone === 'luck' ? pending.amount : -pending.amount;
+  const nextFinances = { ...game.playerFinances };
+
+  affectedPlayerIds.forEach((affectedPlayerId) => {
+    const finance = nextFinances[affectedPlayerId];
+
+    if (!finance) return;
+
+    nextFinances[affectedPlayerId] = appendFinanceTransaction(
+      {
+        ...finance,
+        balance: Math.max(0, finance.balance + signedAmount),
+        updatedAt: now,
+      },
+      {
+        kind: 'event',
+        amount: signedAmount,
+        round: game.round,
+        description: pending.message ?? 'Evento',
+        boardIndex: pending.boardIndex,
+      },
+      now,
+    );
+  });
+
+  return {
+    ...game,
+    playerFinances: nextFinances,
   };
 }
 
@@ -368,7 +499,9 @@ export async function addPlayerToRoom(roomId: string, input: CreatePlayerInput) 
     throw new Error('Ja existe um jogador com esse nome nesta sala.');
   }
 
-  if (players.some((player) => player.colorKey === input.colorKey)) {
+  if (
+    players.some((player) => player.status !== 'eliminated' && player.colorKey === input.colorKey)
+  ) {
     throw new Error('Essa cor ja foi escolhida por outro jogador.');
   }
 
@@ -991,6 +1124,51 @@ export async function confirmRoundPending(roomId: string, playerId: string, pend
       throw new Error('Pendencia de rodada nao encontrada.');
     }
 
+    if (pending.kind === 'rent') {
+      if (!pending.relatedPlayerId || !pending.boardIndex) {
+        throw new Error('Pendencia de aluguel invalida.');
+      }
+
+      const gameWithRent = applyRentPayment(
+        game,
+        playerId,
+        pending.relatedPlayerId,
+        pending.boardIndex,
+        pending.amount,
+        now,
+      );
+
+      return toFirebaseValue({
+        ...gameWithRent,
+        roundPendings: {
+          ...gameWithRent.roundPendings,
+          [pendingId]: {
+            ...pending,
+            status: 'confirmed',
+            confirmedAt: now,
+          },
+        },
+        updatedAt: now,
+      });
+    }
+
+    if (pending.kind === 'event' || pending.kind === 'global-event') {
+      const gameWithEvent = applyEventPending(game, pendingId, now);
+
+      return toFirebaseValue({
+        ...gameWithEvent,
+        roundPendings: {
+          ...gameWithEvent.roundPendings,
+          [pendingId]: {
+            ...pending,
+            status: 'confirmed',
+            confirmedAt: now,
+          },
+        },
+        updatedAt: now,
+      });
+    }
+
     if (pending.kind !== 'statement') {
       throw new Error('Pendencia de rodada antiga nao e mais suportada.');
     }
@@ -1201,8 +1379,12 @@ export async function buildTitleProperty(
       throw new Error('Construcao disponivel apenas a partir da proxima rodada.');
     }
 
-    if ((title.lastPropertyActionRound ?? title.lastPropertyPurchaseRound) === game.round) {
-      throw new Error('Este titulo ja teve uma acao de propriedade nesta rodada.');
+    if (game.turnPlayerId !== playerId) {
+      throw new Error('Acoes de propriedade so podem ser feitas na sua vez.');
+    }
+
+    if (title.lastPropertyActionTurnStartedAt === game.turnStartedAt) {
+      throw new Error('Este titulo ja teve uma acao de propriedade nesta vez.');
     }
 
     if (currentSlotBlueprint?.category === 'business') {
@@ -1266,6 +1448,7 @@ export async function buildTitleProperty(
           properties: nextProperties,
           lastPropertyPurchaseRound: game.round,
           lastPropertyActionRound: game.round,
+          lastPropertyActionTurnStartedAt: game.turnStartedAt,
         },
       },
       playerFinances: {
@@ -1322,8 +1505,12 @@ export async function destroyTitleProperty(
       throw new Error('Destruicao disponivel apenas a partir da proxima rodada.');
     }
 
-    if ((title.lastPropertyActionRound ?? title.lastPropertyPurchaseRound) === game.round) {
-      throw new Error('Este titulo ja teve uma acao de propriedade nesta rodada.');
+    if (game.turnPlayerId !== playerId) {
+      throw new Error('Acoes de propriedade so podem ser feitas na sua vez.');
+    }
+
+    if (title.lastPropertyActionTurnStartedAt === game.turnStartedAt) {
+      throw new Error('Este titulo ja teve uma acao de propriedade nesta vez.');
     }
 
     if (!playerFinance) {
@@ -1350,6 +1537,7 @@ export async function destroyTitleProperty(
           ...title,
           properties: properties.filter((item) => item.id !== propertyId),
           lastPropertyActionRound: game.round,
+          lastPropertyActionTurnStartedAt: game.turnStartedAt,
         },
       },
       playerFinances: {
@@ -2083,7 +2271,13 @@ export async function rollPlayerDice(
     const position = game.positions[playerId] ?? 1;
     const nextPosition = moveBoardPosition(position, roll.total);
     const { nextCompletedTurns, nextPlayerId, nextRound } = advanceTurn(game, roll);
-    const gameWithRentSettled = settleRentForPosition(game, playerId, nextPosition, now);
+    const gameWithRentSettled = createEventPendingForPosition(
+      createRentPendingForPosition(game, playerId, nextPosition, now),
+      playerId,
+      nextPosition,
+      players,
+      now,
+    );
     const lapPendings = didPassStart(position, nextPosition, roll.total)
       ? createLapPendings(gameWithRentSettled, playerId, now)
       : {

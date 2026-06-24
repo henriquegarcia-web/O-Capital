@@ -78,7 +78,9 @@ export function RoomPage() {
         <PlayerJoinCard
           framed={false}
           loading={joining}
-          disabledColorKeys={players.map((player) => player.colorKey)}
+          disabledColorKeys={players
+            .filter((player) => player.status !== 'eliminated')
+            .map((player) => player.colorKey)}
           onJoin={handleJoin}
         />
       </Modal>

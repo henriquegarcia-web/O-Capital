@@ -1017,10 +1017,10 @@ body {
 .bank-statement-total {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 12px;
-  padding-top: 10px;
-  border-top: 1px solid #e6efeb;
+  padding: 4px 0 8px 0;
+  border-bottom: 1px solid #e6efeb;
 }
 
 .player-finance-card .ant-statistic-title,
@@ -1070,7 +1070,7 @@ body {
 .ranking-position--leader {
   color: #ffffff;
   font-weight: 800;
-  background: #d91b5c;
+  background: #ff7a00;
 }
 
 .ranking-player-name {
@@ -1276,4 +1276,8 @@ body {
 .bank-title-values__bonus {
   color: #15803d !important;
   white-space: nowrap;
+}
+
+.ranking-player-name--current {
+  color: #ff7a00 !important;
 }

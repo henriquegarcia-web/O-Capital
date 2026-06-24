@@ -22,11 +22,7 @@ export function ControlledProfileColorSelect<TFieldValues extends FieldValues>({
       control={control}
       name={name}
       render={({ field, fieldState }) => (
-        <Form.Item
-          label={label}
-          validateStatus={fieldState.error ? 'error' : undefined}
-          help={fieldState.error?.message}
-        >
+        <Form.Item label={label} validateStatus={fieldState.error ? 'error' : undefined}>
           <Radio.Group {...field} className="profile-options-group">
             <Flex wrap="wrap" gap={8} className="profile-options-grid">
               {PROFILE_COLORS.map((color) => {

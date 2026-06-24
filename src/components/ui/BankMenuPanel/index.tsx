@@ -743,7 +743,7 @@ export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPa
                     <Form.Item
                       name="amount"
                       label="Valor desejado"
-                      rules={[{ required: true, message: 'Informe o valor.' }]}
+                      rules={[{ required: true, message: '' }]}
                       style={{ flex: '1 1 180px', marginBottom: 0 }}
                     >
                       <Space.Compact style={{ width: '100%' }}>
@@ -814,7 +814,7 @@ export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPa
                     <Form.Item
                       name="lenderId"
                       label="Jogador"
-                      rules={[{ required: true, message: 'Selecione o jogador.' }]}
+                      rules={[{ required: true, message: '' }]}
                       style={{ flex: '1 1 180px', marginBottom: 0 }}
                     >
                       <Select placeholder="Selecione" options={loanLenderOptions} />
@@ -822,7 +822,7 @@ export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPa
                     <Form.Item
                       name="amount"
                       label="Valor"
-                      rules={[{ required: true, message: 'Informe o valor.' }]}
+                      rules={[{ required: true, message: '' }]}
                       style={{ flex: '1 1 150px', marginBottom: 0 }}
                     >
                       <Space.Compact style={{ width: '100%' }}>
@@ -947,11 +947,7 @@ export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPa
             );
           }}
         >
-          <Form.Item
-            label="Valor"
-            name="amount"
-            rules={[{ required: true, message: 'Informe o valor.' }]}
-          >
+          <Form.Item label="Valor" name="amount" rules={[{ required: true, message: '' }]}>
             <Space.Compact style={{ width: '100%' }}>
               <Button disabled className="money-input-prefix">
                 R$
