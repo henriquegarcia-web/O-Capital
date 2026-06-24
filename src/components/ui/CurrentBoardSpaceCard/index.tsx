@@ -86,6 +86,9 @@ export function CurrentBoardSpaceCard({
     () => getTitlePropertySlots(properties, propertySlots),
     [properties, propertySlots],
   );
+  const visiblePropertySlotItems = isOwnedByOtherPlayer
+    ? propertySlotItems.filter((property) => Boolean(property))
+    : propertySlotItems;
   const selectedSlotProperty =
     typeof selectedSlotIndex === 'number' ? propertySlotItems[selectedSlotIndex] : null;
   const availableBlueprints = useMemo(
@@ -100,13 +103,9 @@ export function CurrentBoardSpaceCard({
   const neighborhood = NEIGHBORHOODS.find((item) => item.key === boardSpace.neighborhoodKey);
   const neighborhoodName = neighborhood?.name ?? (isStreet ? 'Bairro' : boardSpace.name);
   const streetName = boardSpace.streetName ?? boardSpace.name;
-  const bonusBlueprints = PROPERTY_BLUEPRINTS.filter((blueprint) =>
-    neighborhood?.bonusTarget === 'business'
-      ? blueprint.category === 'business'
-      : blueprint.category === 'real-estate',
-  );
-  const bonusLabel =
-    neighborhood?.bonusTarget === 'business' ? 'Empreendimentos com bonus' : 'Imoveis com bonus';
+  const bonusLabel = neighborhood?.bonusTarget === 'business' ? 'Empreendimentos' : 'Imoveis';
+  const bonusBaseLabel =
+    neighborhood?.bonusTarget === 'business' ? '20% sobre recebiveis' : '20% sobre alugueis';
   const buyBlockReason = !isStreet
     ? 'Esta casa nao possui titulo.'
     : title?.ownerId
@@ -309,30 +308,48 @@ export function CurrentBoardSpaceCard({
             </Flex>
           </div>
 
-          <Descriptions bordered column={1} size="small">
-            <Descriptions.Item label="Status">{status}</Descriptions.Item>
-            {isStreet ? (
-              <Descriptions.Item label="Terreno">
-                {landValue > 0 ? formatMoney(landValue) : 'Valor pendente'}
-              </Descriptions.Item>
-            ) : null}
-          </Descriptions>
-
-          {isStreet ? (
+          {isStreet && !isOwnedByOtherPlayer ? (
             <div className="current-space-bonus">
-              <Flex align="center" justify="space-between" gap={10} wrap>
-                <Typography.Text type="secondary">Bonus do bairro</Typography.Text>
-                <Typography.Text strong>{bonusLabel}</Typography.Text>
-              </Flex>
-              <Typography.Text type="secondary" className="current-space-bonus__items">
-                {bonusBlueprints.map((blueprint) => blueprint.name).join(', ')}
-              </Typography.Text>
+              <span
+                className="current-space-bonus__accent"
+                style={{ backgroundColor: boardSpace.color }}
+              />
+              <Space orientation="vertical" size={8} className="current-space-bonus__content">
+                <Flex align="flex-start" justify="space-between" gap={12} wrap>
+                  <Flex vertical gap={6} flex={1} style={{ paddingTop: 3 }}>
+                    <Typography.Text type="secondary" className="current-space-bonus__eyebrow">
+                      Bonus de localidade
+                    </Typography.Text>
+                    <Flex align="center" justify="space-between" flex={1}>
+                      <Typography.Text strong className="current-space-bonus__title">
+                        {bonusLabel}
+                      </Typography.Text>
+                      <span className="current-space-bonus__rate">{bonusBaseLabel}</span>
+                    </Flex>
+                  </Flex>
+                </Flex>
+              </Space>
             </div>
+          ) : null}
+
+          {!isOwner ? (
+            <Descriptions bordered column={1} size="small">
+              <Descriptions.Item label="Status">{status}</Descriptions.Item>
+              {isStreet ? (
+                <Descriptions.Item label="Terreno">
+                  {landValue > 0 ? formatMoney(landValue) : 'Valor pendente'}
+                </Descriptions.Item>
+              ) : null}
+            </Descriptions>
           ) : null}
 
           {isStreet && title?.ownerId ? (
             <Space orientation="vertical" size={8} style={{ width: '100%' }}>
-              {propertySlotItems.map((property, slotIndex) => {
+              {isOwnedByOtherPlayer && visiblePropertySlotItems.length === 0 ? (
+                <Typography.Text type="secondary">Nao ha propriedades ainda.</Typography.Text>
+              ) : null}
+              {visiblePropertySlotItems.map((property, slotIndex) => {
+                const originalSlotIndex = property?.slotIndex ?? slotIndex;
                 const blueprint = property ? getBlueprint(property.blueprintKey) : undefined;
                 const propertyLabel = property?.optionName ?? blueprint?.name ?? 'Terreno vazio';
                 const nextUpgradeBlueprint = getNextRealEstateBlueprintForSlot(property);
@@ -351,7 +368,7 @@ export function CurrentBoardSpaceCard({
 
                 return (
                   <Flex
-                    key={property?.id ?? slotIndex}
+                    key={property?.id ?? originalSlotIndex}
                     align="center"
                     justify="space-between"
                     gap={8}
@@ -369,10 +386,12 @@ export function CurrentBoardSpaceCard({
                       </span>
                       <Space orientation="vertical" size={0}>
                         <Typography.Text strong>{propertyLabel}</Typography.Text>
-                        <Typography.Text type="secondary">{`Terreno ${slotIndex + 1}`}</Typography.Text>
+                        {!isOwnedByOtherPlayer ? (
+                          <Typography.Text type="secondary">{`Terreno ${originalSlotIndex + 1}`}</Typography.Text>
+                        ) : null}
                       </Space>
                     </Flex>
-                    {property ? (
+                    {property && isOwner ? (
                       <Space.Compact>
                         {blueprint?.category === 'real-estate' ? (
                           <Tooltip
@@ -386,7 +405,7 @@ export function CurrentBoardSpaceCard({
                               size="small"
                               icon={<ArrowUpOutlined />}
                               disabled={!canUpgrade}
-                              onClick={() => handleUpgradeProperty(slotIndex)}
+                              onClick={() => handleUpgradeProperty(originalSlotIndex)}
                             />
                           </Tooltip>
                         ) : null}
@@ -439,11 +458,6 @@ export function CurrentBoardSpaceCard({
               ) : null}
               {buildBlockReason && isOwner ? (
                 <Typography.Text type="secondary">{buildBlockReason}</Typography.Text>
-              ) : null}
-              {isOwnedByOtherPlayer ? (
-                <Typography.Text type="secondary">
-                  Aluguel automatico sera aplicado ao cair em titulo com imovel.
-                </Typography.Text>
               ) : null}
             </Space>
           ) : null}

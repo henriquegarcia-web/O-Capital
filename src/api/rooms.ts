@@ -21,7 +21,6 @@ import type {
   PlayerDebt,
   PlayerFinance,
   PlayerTransaction,
-  PropertyBlueprint,
   Room,
   RoomSummary,
 } from '@/types';
@@ -31,6 +30,7 @@ import {
   calculateLoanDebtAmount,
   calculateProjectedBankScore,
   calculateTitleBankSaleValue,
+  calculateTitleRent,
   getTaxPendingPayableAmount,
   createLapPendings,
   didPassStart,
@@ -149,13 +149,6 @@ function updateDebtMirrors(
   };
 }
 
-function getRentBlueprint(properties: BuiltProperty[] = []) {
-  return properties
-    .map((property) => getBlueprint(property.blueprintKey))
-    .filter((blueprint): blueprint is PropertyBlueprint => blueprint?.category === 'real-estate')
-    .sort((current, next) => (next.rent ?? 0) - (current.rent ?? 0))[0];
-}
-
 function settleRentForPosition(game: GameState, playerId: string, boardIndex: number, now: number) {
   const title = game.titles[String(boardIndex)];
   const ownerId = title?.ownerId;
@@ -164,8 +157,7 @@ function settleRentForPosition(game: GameState, playerId: string, boardIndex: nu
     return game;
   }
 
-  const rentBlueprint = getRentBlueprint(title.properties);
-  const rentAmount = rentBlueprint?.rent ?? 0;
+  const rentAmount = calculateTitleRent(title);
 
   if (rentAmount <= 0) {
     return game;

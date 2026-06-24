@@ -54,7 +54,9 @@ import {
   calculateTitleBuiltValue,
   calculateTitleMaintenance,
   calculateTitleReceivables,
+  calculateTitleReceivablesLocalityBonus,
   calculateTitleRent,
+  calculateTitleRentLocalityBonus,
   calculateTitleTax,
   formatMoney,
   getPlayerTitles,
@@ -178,30 +180,53 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
     );
   }
 
+  function renderTitleValueAmount(value: number, bonus = 0, tone?: string) {
+    return (
+      <Typography.Text strong className={tone ? 'bank-money bank-money--' + tone : undefined}>
+        {formatMoney(value)}
+        {bonus > 0 ? (
+          <Typography.Text strong className="bank-title-values__bonus">
+            {' + '}
+            {formatMoney(bonus)}
+          </Typography.Text>
+        ) : null}
+      </Typography.Text>
+    );
+  }
+
   function renderTitleValues(title: TitleOwnership) {
+    const receivablesBonus = calculateTitleReceivablesLocalityBonus(title);
+    const rentBonus = calculateTitleRentLocalityBonus(title);
     const values = [
-      { label: 'Terreno', value: formatMoney(getTitleLandValue(title)) },
-      { label: 'Construido', value: formatMoney(calculateTitleBuiltValue(title)) },
-      { label: 'Valor estimado', value: formatMoney(calculateTitleBankSaleValue(game, title)) },
+      { label: 'Terreno', content: renderTitleValueAmount(getTitleLandValue(title)) },
+      { label: 'Construido', content: renderTitleValueAmount(calculateTitleBuiltValue(title)) },
+      {
+        label: 'Valor estimado',
+        content: renderTitleValueAmount(calculateTitleBankSaleValue(game, title)),
+      },
       {
         label: 'Impostos',
-        value: formatMoney(Math.round(calculateTitleTax(game, title))),
-        tone: 'danger',
+        content: renderTitleValueAmount(Math.round(calculateTitleTax(game, title)), 0, 'danger'),
       },
       {
         label: 'Manutencao',
-        value: formatMoney(calculateTitleMaintenance(title)),
-        tone: 'danger',
+        content: renderTitleValueAmount(calculateTitleMaintenance(title), 0, 'danger'),
       },
       {
         label: 'Recebiveis',
-        value: formatMoney(calculateTitleReceivables(title)),
-        tone: 'success',
+        content: renderTitleValueAmount(
+          calculateTitleReceivables(title) - receivablesBonus,
+          receivablesBonus,
+          'success',
+        ),
       },
       {
         label: 'Alugueis',
-        value: formatMoney(calculateTitleRent(title)),
-        tone: 'success',
+        content: renderTitleValueAmount(
+          calculateTitleRent(title) - rentBonus,
+          rentBonus,
+          'success',
+        ),
       },
     ];
 
@@ -210,12 +235,7 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
         {values.map((item) => (
           <Flex key={item.label} align="center" justify="space-between" gap={10}>
             <Typography.Text type="secondary">{item.label}</Typography.Text>
-            <Typography.Text
-              strong
-              className={item.tone ? `bank-money bank-money--${item.tone}` : undefined}
-            >
-              {item.value}
-            </Typography.Text>
+            {item.content}
           </Flex>
         ))}
       </div>

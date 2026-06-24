@@ -1,6 +1,7 @@
 import {
   BOARD_SIZE,
   BOARD_SPACES_BY_INDEX,
+  NEIGHBORHOODS,
   PROPERTY_BLUEPRINTS,
   START_SPACE_INDEX,
 } from '@/constants';
@@ -22,6 +23,7 @@ export const BANK_LOAN_BASE_LIMIT = 5000;
 export const BANK_LOAN_LIMIT_STEP = 1000;
 export const BANK_LOAN_LIMIT_PATRIMONY_STEP = 5000;
 export const BANK_LOAN_MIN_SCORE = 50;
+export const LOCALITY_BONUS_RATE = 0.2;
 
 export function getActivePlayers(players: Player[]) {
   return players.filter((player) => player.status !== 'eliminated');
@@ -249,7 +251,25 @@ export function calculatePlayerRoundIncome(game: GameState, playerId: string) {
   );
 }
 
-export function calculateTitleReceivables(title: TitleOwnership) {
+function getTitleBonusTarget(title: TitleOwnership) {
+  const boardSpace = BOARD_SPACES_BY_INDEX[title.boardIndex];
+
+  if (!boardSpace?.neighborhoodKey) {
+    return undefined;
+  }
+
+  return boardSpace.neighborhoodKey;
+}
+
+function getNeighborhoodBonusTarget(title: TitleOwnership) {
+  const neighborhoodKey = getTitleBonusTarget(title);
+
+  return neighborhoodKey
+    ? NEIGHBORHOODS.find((neighborhood) => neighborhood.key === neighborhoodKey)?.bonusTarget
+    : undefined;
+}
+
+function calculateTitleBaseReceivables(title: TitleOwnership) {
   return (title.properties ?? []).reduce((total, property) => {
     const blueprint = PROPERTY_BLUEPRINTS.find((item) => item.key === property.blueprintKey);
 
@@ -257,12 +277,58 @@ export function calculateTitleReceivables(title: TitleOwnership) {
   }, 0);
 }
 
-export function calculateTitleRent(title: TitleOwnership) {
+function calculateTitleBaseRent(title: TitleOwnership) {
   return (title.properties ?? []).reduce((total, property) => {
     const blueprint = PROPERTY_BLUEPRINTS.find((item) => item.key === property.blueprintKey);
 
     return total + (blueprint?.category === 'real-estate' ? (blueprint.rent ?? 0) : 0);
   }, 0);
+}
+
+function calculateTitleLocalityBonusByTarget(
+  title: TitleOwnership,
+  target: 'real-estate' | 'business',
+) {
+  const bonusTarget = getNeighborhoodBonusTarget(title);
+
+  if (bonusTarget !== target) {
+    return 0;
+  }
+
+  return (title.properties ?? []).reduce((total, property) => {
+    const blueprint = PROPERTY_BLUEPRINTS.find((item) => item.key === property.blueprintKey);
+
+    if (!blueprint || blueprint.category !== target) {
+      return total;
+    }
+
+    const baseValue =
+      blueprint.category === 'real-estate'
+        ? (blueprint.rent ?? 0)
+        : (blueprint.dividendsPerRound ?? 0);
+
+    return total + Math.round(baseValue * LOCALITY_BONUS_RATE);
+  }, 0);
+}
+
+export function calculateTitleReceivablesLocalityBonus(title: TitleOwnership) {
+  return calculateTitleLocalityBonusByTarget(title, 'business');
+}
+
+export function calculateTitleRentLocalityBonus(title: TitleOwnership) {
+  return calculateTitleLocalityBonusByTarget(title, 'real-estate');
+}
+
+export function calculateTitleLocalityBonus(title: TitleOwnership) {
+  return calculateTitleReceivablesLocalityBonus(title) + calculateTitleRentLocalityBonus(title);
+}
+
+export function calculateTitleReceivables(title: TitleOwnership) {
+  return calculateTitleBaseReceivables(title) + calculateTitleReceivablesLocalityBonus(title);
+}
+
+export function calculateTitleRent(title: TitleOwnership) {
+  return calculateTitleBaseRent(title) + calculateTitleRentLocalityBonus(title);
 }
 
 export function calculatePlayerRentIncome(game: GameState, playerId: string) {
