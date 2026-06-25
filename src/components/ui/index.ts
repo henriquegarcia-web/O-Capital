@@ -1,3 +1,4 @@
+﻿export * from './AdvantagesMenuPanel';
 export * from './AppLayout';
 export * from './AppBottomNavigation';
 export * from './BankActionsCard';
@@ -16,3 +17,4 @@ export * from './RoomCreateCard';
 export * from './RoomInfoCard';
 export * from './RoomsGrid';
 export * from './TitlesMenuPanel';
+

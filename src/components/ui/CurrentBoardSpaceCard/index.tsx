@@ -26,11 +26,14 @@ import {
 
 import {
   applyFederalTaxAudit,
+  buyAdvantage,
   buildTitleProperty,
   buyTitle,
   destroyTitleProperty,
   payDebtWithBankDiscount,
+  payRestrictionFine,
   payTaxPendingWithBankDiscount,
+  useFiscalProtection as applyFiscalProtectionAdvantage,
 } from '@/api';
 import {
   BOARD_SPACES_BY_INDEX,
@@ -39,15 +42,19 @@ import {
   PROPERTY_BLUEPRINTS,
   formatBalanceRate,
 } from '@/constants';
-import type { GameState, Player, PlayerDebt, TaxPending } from '@/types';
+import type { AdvantageKey, GameState, Player, PlayerDebt, TaxPending } from '@/types';
 import {
   calculateBankSettlementAmount,
   calculateFederalTaxAudit,
+  calculateRestrictionFineAmount,
   formatMoney,
+  getActivePlayerRestriction,
+  getAdvantageQuantity,
   getAvailableBlueprintsForPropertySlot,
   getNextRealEstateBlueprintForSlot,
   getTitlePropertySlots,
   hasCurrentSpaceAction,
+  isPlayerActionBlocked,
 } from '@/utils';
 
 type CurrentBoardSpaceCardProps = {
@@ -122,6 +129,18 @@ export function CurrentBoardSpaceCard({
   const isCurrentPlayerTurn = game.status === 'playing' && game.turnPlayerId === currentPlayer.id;
   const isAtBankSpace = boardSpace.kind === 'bank';
   const isAtTaxSpace = boardSpace.kind === 'tax';
+  const isAtAdvantageMarket = boardSpace.kind === 'advantage-market';
+  const activeRestriction = getActivePlayerRestriction(game, currentPlayer.id);
+  const actionBlocked = isPlayerActionBlocked(game, currentPlayer.id);
+  const canUseFiscalProtection =
+    Boolean(activeRestriction) &&
+    isCurrentPlayerTurn &&
+    getAdvantageQuantity(game, currentPlayer.id, 'fiscal-protection') > 0;
+  const restrictionFineAmount = calculateRestrictionFineAmount(game, currentPlayer.id);
+  const canPayRestrictionFine =
+    Boolean(activeRestriction) &&
+    (activeRestriction?.failedAttempts ?? 0) >=
+      GAME_BALANCE.restrictions.requiredFailedAttemptsBeforeFine;
   const selectedBlueprint = selectedBlueprintKey ? getBlueprint(selectedBlueprintKey) : undefined;
   const federalTaxAudit = useMemo(
     () => calculateFederalTaxAudit(game, currentPlayer.id),
@@ -160,28 +179,38 @@ export function CurrentBoardSpaceCard({
     neighborhood?.bonusTarget === 'business'
       ? `${localityBonusPercent} sobre recebiveis`
       : `${localityBonusPercent} sobre alugueis`;
-  const buyBlockReason = !isCurrentPlayerTurn
-    ? 'A compra fica disponivel apenas na sua vez de jogar.'
-    : !isStreet
-      ? 'Esta casa nao possui titulo.'
-      : title?.ownerId
-        ? 'Titulo indisponivel.'
-        : landValue <= 0
-          ? 'Titulo sem valor definido.'
-          : (finance?.balance ?? 0) < landValue
-            ? 'Saldo insuficiente.'
-            : null;
-  const buildBlockReason = !isOwner
-    ? 'Apenas o dono pode construir.'
-    : title?.acquiredAtRound === game.round
-      ? 'Construcao disponivel apenas a partir da proxima rodada.'
-      : !isCurrentPlayerTurn
-        ? 'Acoes de propriedade disponiveis apenas na sua vez.'
-        : propertyActionTurnStartedAt === game.turnStartedAt
-          ? 'Ja houve construcao, destruicao ou evolucao neste titulo nesta vez.'
-          : !hasAvailableBuildSlot
-            ? 'Sem terrenos vazios disponiveis para construcao.'
-            : null;
+  const hasPurchasedAdvantageThisTurn = hasCurrentSpaceAction(
+    game,
+    currentPlayer.id,
+    boardSpace.index,
+    'advantage-purchase',
+  );
+  const buyBlockReason = actionBlocked
+    ? 'Jogador travado nao pode comprar titulos.'
+    : !isCurrentPlayerTurn
+      ? 'A compra fica disponivel apenas na sua vez de jogar.'
+      : !isStreet
+        ? 'Esta casa nao possui titulo.'
+        : title?.ownerId
+          ? 'Titulo indisponivel.'
+          : landValue <= 0
+            ? 'Titulo sem valor definido.'
+            : (finance?.balance ?? 0) < landValue
+              ? 'Saldo insuficiente.'
+              : null;
+  const buildBlockReason = actionBlocked
+    ? 'Jogador travado nao pode construir.'
+    : !isOwner
+      ? 'Apenas o dono pode construir.'
+      : title?.acquiredAtRound === game.round
+        ? 'Construcao disponivel apenas a partir da proxima rodada.'
+        : !isCurrentPlayerTurn
+          ? 'Acoes de propriedade disponiveis apenas na sua vez.'
+          : propertyActionTurnStartedAt === game.turnStartedAt
+            ? 'Ja houve construcao, destruicao ou evolucao neste titulo nesta vez.'
+            : !hasAvailableBuildSlot
+              ? 'Sem terrenos vazios disponiveis para construcao.'
+              : null;
   const status = isStreet
     ? ownerName
       ? `${ownerName} e dono desse terreno`
@@ -213,6 +242,30 @@ export function CurrentBoardSpaceCard({
     setBuildModalOpen(true);
   }
 
+  async function handleBuyAdvantage(advantageKey: AdvantageKey) {
+    setSpaceActionLoading(advantageKey);
+
+    try {
+      await buyAdvantage(roomId, currentPlayer.id, advantageKey);
+      message.success('Vantagem comprada.');
+    } catch (error) {
+      message.error(
+        error instanceof Error ? error.message : 'Nao foi possivel comprar a vantagem.',
+      );
+    } finally {
+      setSpaceActionLoading(null);
+    }
+  }
+
+  async function handleUseFiscalProtection() {
+    await runSpaceAction('fiscal-protection', () =>
+      applyFiscalProtectionAdvantage(roomId, currentPlayer.id),
+    );
+  }
+
+  async function handlePayRestrictionFine() {
+    await runSpaceAction('restriction-fine', () => payRestrictionFine(roomId, currentPlayer.id));
+  }
   async function handleBuyTitle() {
     modal.confirm({
       title: 'Confirmar compra',
@@ -503,6 +556,56 @@ export function CurrentBoardSpaceCard({
             </Descriptions>
           ) : null}
 
+          {activeRestriction ? (
+            <Space orientation="vertical" size={10} style={{ width: '100%' }}>
+              <Alert
+                type="warning"
+                showIcon
+                title={
+                  activeRestriction.kind === 'bank-block'
+                    ? 'Bloqueio Bancario ativo'
+                    : 'Embargo Fiscal ativo'
+                }
+                description={
+                  activeRestriction.failedAttempts >=
+                  GAME_BALANCE.restrictions.requiredFailedAttemptsBeforeFine
+                    ? `Tente sair tirando numeros iguais ou pague a multa de ${formatMoney(restrictionFineAmount)}.`
+                    : `Tire numeros iguais para sair. Tentativas sem sucesso: ${activeRestriction.failedAttempts}/${GAME_BALANCE.restrictions.requiredFailedAttemptsBeforeFine}.`
+                }
+              />
+              {canUseFiscalProtection ? (
+                <Card size="small" className="bank-app-card">
+                  <Flex align="center" justify="space-between" gap={12} wrap>
+                    <Space orientation="vertical" size={0}>
+                      <Typography.Text strong>Protecao Fiscal disponivel</Typography.Text>
+                      <Typography.Text type="secondary">
+                        Use para anular esta penalidade imediatamente.
+                      </Typography.Text>
+                    </Space>
+                    <Button
+                      type="primary"
+                      loading={spaceActionLoading === 'fiscal-protection'}
+                      onClick={() => void handleUseFiscalProtection()}
+                    >
+                      Usar
+                    </Button>
+                  </Flex>
+                </Card>
+              ) : null}
+              {canPayRestrictionFine ? (
+                <Button
+                  block
+                  type="primary"
+                  danger
+                  loading={spaceActionLoading === 'restriction-fine'}
+                  disabled={(finance?.balance ?? 0) < restrictionFineAmount}
+                  onClick={() => void handlePayRestrictionFine()}
+                >
+                  Pagar multa de {formatMoney(restrictionFineAmount)}
+                </Button>
+              ) : null}
+            </Space>
+          ) : null}
           {isAtTaxSpace ? (
             <Space orientation="vertical" size={10} style={{ width: '100%' }}>
               <Alert
@@ -553,6 +656,46 @@ export function CurrentBoardSpaceCard({
             </Space>
           ) : null}
 
+          {isAtAdvantageMarket ? (
+            <Space orientation="vertical" size={10} style={{ width: '100%' }}>
+              <Alert
+                type="info"
+                showIcon
+                title="Mercado de Vantagens"
+                description="Compre uma vantagem por passagem no mercado. Ela ira para o inventario no menu Vantagens."
+              />
+              {GAME_BALANCE.advantages.items.map((advantage) => (
+                <Flex
+                  key={advantage.key}
+                  align="center"
+                  justify="space-between"
+                  gap={10}
+                  wrap
+                  className="board-space-property-slot"
+                >
+                  <Space orientation="vertical" size={0}>
+                    <Typography.Text strong>{advantage.name}</Typography.Text>
+                    <Typography.Text type="secondary">{advantage.shortDescription}</Typography.Text>
+                    <Typography.Text strong>{formatMoney(advantage.cost)}</Typography.Text>
+                  </Space>
+                  <Button
+                    size="small"
+                    type="primary"
+                    disabled={
+                      !isCurrentPlayerTurn ||
+                      actionBlocked ||
+                      hasPurchasedAdvantageThisTurn ||
+                      (finance?.balance ?? 0) < advantage.cost
+                    }
+                    loading={spaceActionLoading === advantage.key}
+                    onClick={() => void handleBuyAdvantage(advantage.key)}
+                  >
+                    Comprar
+                  </Button>
+                </Flex>
+              ))}
+            </Space>
+          ) : null}
           {isAtBankSpace ? (
             <Space orientation="vertical" size={10} style={{ width: '100%' }}>
               <Alert

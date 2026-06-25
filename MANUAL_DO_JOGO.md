@@ -309,3 +309,42 @@ Pausar muda o status da partida para pausada. Encerrar muda a sala e o jogo para
 Os valores centrais de balanceamento ficam reunidos em `GAME_BALANCE`. Essa configuracao controla saldo inicial, limites de jogadores, tamanho do tabuleiro, dados, slots de propriedade, juros, limite de credito, desconto do Banco, bonus de localidade, regras fiscais, valorizacao de venda ao Banco, bairros, propriedades, casas do tabuleiro e cartas de evento.
 
 Alterar `GAME_BALANCE` propaga os novos valores para os calculos e para os textos dinamicos da interface que exibem percentuais de regra.
+
+## Atualizacao - Casas de Penalidade e Mercado de Vantagens
+
+### Embargo Fiscal e Bloqueio Bancario
+
+Ao cair em Embargo Fiscal ou Bloqueio Bancario, o jogador recebe uma penalidade ativa e fica travado na casa. Enquanto estiver travado, ele nao pode realizar acoes que dependem de uso de dinheiro ou negociacao: comprar titulos, construir ou destruir propriedades, comprar vantagens, pagar dividas, pagar impostos, fazer acertos no Banco, solicitar ou aceitar emprestimos, vender titulos, aceitar propostas, abrir leiloes, ofertar em leiloes ou fechar leiloes.
+
+O jogador continua podendo receber valores passivos, como recebimentos de outros jogadores ou efeitos positivos. Para sair da penalidade, ele deve rolar dois numeros iguais em sua propria vez. Se nao tirar numeros iguais, permanece na mesma casa e acumula uma tentativa sem sucesso.
+
+Depois de 3 tentativas sem numeros iguais, a multa de liberacao fica disponivel. A multa custa 5% do patrimonio considerado para essa regra, calculado como saldo disponivel mais patrimonio em propriedades. Ao pagar a multa, a penalidade e encerrada.
+
+Se o jogador possuir Protecao Fiscal no inventario, pode usa-la ao cair em Embargo Fiscal ou Bloqueio Bancario para anular a penalidade imediatamente. O uso da vantagem respeita o limite de 1 vantagem por rodada.
+
+### Mercado de Vantagens
+
+Ao cair no Mercado de Vantagens, a casa atual mostra as vantagens disponiveis para compra. O jogador so pode comprar durante sua propria vez, antes de passar a vez, e apenas uma vantagem por passagem no mercado. A vantagem comprada entra no inventario do menu Vantagens.
+
+Vantagens disponiveis:
+
+- Protecao Fiscal: anula Embargo Fiscal ou Bloqueio Bancario. Custa R$ 10.000.
+- Seguro Aluguel: cancela um aluguel devido ao cair em titulo de outro jogador. Custa R$ 10.000.
+- Forcar Leilao: abre um leilao obrigatorio de um titulo de outro jogador. Custa R$ 50.000.
+- Reducao de Impostos: ativa 5 passagens pelo Inicio pagando 50% dos impostos. Custa R$ 35.000.
+
+### Inventario e Uso de Vantagens
+
+O menu Vantagens lista todas as vantagens adquiridas e suas quantidades. Protecao Fiscal e Seguro Aluguel aparecem como itens de quantidade e sao usados no momento certo: penalidade fiscal/bancaria e modal de aluguel, respectivamente.
+
+Forcar Leilao e Reducao de Impostos possuem botao de ativacao no menu Vantagens. Forcar Leilao abre um modal para selecionar o jogador alvo e um titulo desse jogador; o lance inicial e calculado automaticamente pelo valor estimado do titulo. Reducao de Impostos ativa um efeito com 5 passagens restantes pelo Inicio.
+
+Cada jogador pode usar no maximo 1 vantagem por rodada. Comprar uma vantagem no mercado nao conta como uso da rodada; ativar ou consumir uma vantagem conta.
+
+### Seguro Aluguel
+
+Quando o jogador cai em um titulo de outro jogador e ha aluguel pendente, o modal de pagamento mostra a opcao de usar Seguro Aluguel caso exista unidade disponivel. Ao usar, o aluguel e cancelado, a pendencia e encerrada e o dono do titulo recebe um aviso informando que o jogador caiu na propriedade, mas usou a vantagem para nao pagar.
+
+### Reducao de Impostos
+
+Quando a Reducao de Impostos esta ativa, cada prestacao de contas criada ao passar pelo Inicio calcula os impostos originais, aplica 50% de desconto e mostra no modal o valor original, o desconto da vantagem e o imposto final. Cada confirmacao de prestacao com desconto consome 1 das 5 passagens disponiveis.

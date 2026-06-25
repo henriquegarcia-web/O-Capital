@@ -250,6 +250,41 @@ export const GAME_BALANCE = {
     { key: 'event-2', message: 'Evento de reves inicial.', tone: 'setback', amount: 1000 },
     { key: 'event-3', message: 'Evento de sorte inicial.', tone: 'luck', amount: 1500 },
   ],
+  restrictions: {
+    requiredFailedAttemptsBeforeFine: 3,
+    releaseFineNetWorthRate: 0.05,
+  },
+  advantages: {
+    usageLimitPerRound: 1,
+    taxReductionPasses: 5,
+    taxReductionDiscountRate: 0.5,
+    items: [
+      {
+        key: 'fiscal-protection',
+        name: 'Protecao Fiscal',
+        shortDescription: 'Anula Embargo Fiscal ou Bloqueio Bancario ao cair na casa.',
+        cost: 10000,
+      },
+      {
+        key: 'rent-insurance',
+        name: 'Seguro Aluguel',
+        shortDescription: 'Cancela um aluguel devido ao cair em propriedade de outro jogador.',
+        cost: 10000,
+      },
+      {
+        key: 'force-auction',
+        name: 'Forcar Leilao',
+        shortDescription: 'Abre um leilao obrigatorio de um titulo de outro jogador.',
+        cost: 50000,
+      },
+      {
+        key: 'tax-reduction',
+        name: 'Reducao de Impostos',
+        shortDescription: 'Paga metade dos impostos nas proximas 5 passagens pelo Inicio.',
+        cost: 35000,
+      },
+    ],
+  },
   globalEventCards: [
     {
       key: 'global-event-1',

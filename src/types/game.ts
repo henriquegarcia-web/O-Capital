@@ -164,7 +164,8 @@ export type RoundPendingKind =
   | 'statement'
   | 'rent'
   | 'event'
-  | 'global-event';
+  | 'global-event'
+  | 'rent-waived-notice';
 export type EventTone = 'luck' | 'setback';
 
 export type RoundPending = {
@@ -184,6 +185,9 @@ export type RoundPending = {
     maintenance: number;
     taxes: number;
     netAmount: number;
+    originalTaxes?: number;
+    taxDiscount?: number;
+    taxReductionAdvantageId?: string;
   };
   status: RoundPendingStatus;
   createdAt: number;
@@ -265,6 +269,46 @@ export type BoardSpaceAction = {
   createdAt: number;
 };
 
+export type AdvantageKey =
+  | 'fiscal-protection'
+  | 'rent-insurance'
+  | 'force-auction'
+  | 'tax-reduction';
+
+export type PlayerAdvantageInventoryItem = {
+  key: AdvantageKey;
+  quantity: number;
+};
+
+export type PlayerTaxReductionEffect = {
+  id: string;
+  remainingPasses: number;
+  discountRate: number;
+  createdAt: number;
+};
+
+export type PlayerAdvantageState = {
+  inventory: Partial<Record<AdvantageKey, PlayerAdvantageInventoryItem>>;
+  taxReduction?: PlayerTaxReductionEffect;
+  usedInRound?: number;
+};
+
+export type PlayerRestrictionKind = 'fiscal-embargo' | 'bank-block';
+export type PlayerRestrictionStatus = 'active' | 'released';
+
+export type PlayerRestriction = {
+  id: string;
+  playerId: string;
+  kind: PlayerRestrictionKind;
+  boardIndex: number;
+  startedAtRound: number;
+  failedAttempts: number;
+  status: PlayerRestrictionStatus;
+  createdAt: number;
+  releasedAt?: number;
+  releaseReason?: 'doubles' | 'fine' | 'advantage';
+};
+
 export type GameStatus = 'waiting' | 'playing' | 'paused' | 'finished';
 
 export type GameState = {
@@ -286,6 +330,8 @@ export type GameState = {
   titleSaleOffers: Record<string, TitleSaleOffer>;
   titleAuctions: Record<string, TitleAuction>;
   playerLoanOffers: Record<string, PlayerLoanOffer>;
+  playerAdvantages: Record<string, PlayerAdvantageState>;
+  playerRestrictions: Record<string, PlayerRestriction>;
   startedAt?: number;
   pausedAt?: number;
   finishedAt?: number;

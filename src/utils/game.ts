@@ -7,10 +7,12 @@ import {
   START_SPACE_INDEX,
 } from '@/constants';
 import type {
+  AdvantageKey,
   BuiltProperty,
   DiceRoll,
   GameState,
   Player,
+  PlayerAdvantageState,
   PlayerFinance,
   PropertyBlueprint,
   RoundPending,
@@ -110,6 +112,8 @@ export function getInitialGameState(players: Player[], now = Date.now()): GameSt
     titleSaleOffers: {},
     titleAuctions: {},
     playerLoanOffers: {},
+    playerAdvantages: {},
+    playerRestrictions: {},
     updatedAt: now,
   };
 }
@@ -152,6 +156,8 @@ export function hydrateGameState(game: GameState | undefined, players: Player[])
     titleSaleOffers: baseGame.titleSaleOffers ?? {},
     titleAuctions: baseGame.titleAuctions ?? {},
     playerLoanOffers: baseGame.playerLoanOffers ?? {},
+    playerAdvantages: baseGame.playerAdvantages ?? {},
+    playerRestrictions: baseGame.playerRestrictions ?? {},
     turnPlayerId,
   };
 }
@@ -219,6 +225,47 @@ export function calculatePlayerFortune(game: GameState, playerId: string) {
     calculatePlayerNetWorth(game, playerId) +
     calculateReceivableTotal(finance) -
     calculateActiveDebtTotal(finance)
+  );
+}
+
+export function getAdvantageDefinition(advantageKey: AdvantageKey) {
+  return GAME_BALANCE.advantages.items.find((item) => item.key === advantageKey);
+}
+
+export function getPlayerAdvantageState(game: GameState, playerId: string): PlayerAdvantageState {
+  return game.playerAdvantages?.[playerId] ?? { inventory: {} };
+}
+
+export function getAdvantageQuantity(
+  game: GameState,
+  playerId: string,
+  advantageKey: AdvantageKey,
+) {
+  return getPlayerAdvantageState(game, playerId).inventory[advantageKey]?.quantity ?? 0;
+}
+
+export function hasAdvantage(game: GameState, playerId: string, advantageKey: AdvantageKey) {
+  return getAdvantageQuantity(game, playerId, advantageKey) > 0;
+}
+
+export function canUseAdvantageThisRound(game: GameState, playerId: string) {
+  return getPlayerAdvantageState(game, playerId).usedInRound !== game.round;
+}
+
+export function getActivePlayerRestriction(game: GameState, playerId: string) {
+  return Object.values(game.playerRestrictions ?? {}).find(
+    (restriction) => restriction.playerId === playerId && restriction.status === 'active',
+  );
+}
+
+export function isPlayerActionBlocked(game: GameState, playerId: string) {
+  return Boolean(getActivePlayerRestriction(game, playerId));
+}
+
+export function calculateRestrictionFineAmount(game: GameState, playerId: string) {
+  return Math.round(
+    (calculatePlayerNetWorth(game, playerId) + (game.playerFinances[playerId]?.balance ?? 0)) *
+      GAME_BALANCE.restrictions.releaseFineNetWorthRate,
   );
 }
 
@@ -516,10 +563,15 @@ export function createLapPendings(game: GameState, playerId: string, now = Date.
   const playerTitles = getPlayerTitles(game, playerId);
   const receivables = calculatePlayerRoundIncome(game, playerId);
   const maintenance = calculatePlayerRoundExpenses(game, playerId);
-  const taxes = playerTitles.reduce(
+  const originalTaxes = playerTitles.reduce(
     (total, title) => total + Math.round(calculateTitleTax(game, title)),
     0,
   );
+  const taxReduction = getPlayerAdvantageState(game, playerId).taxReduction;
+  const taxDiscount = taxReduction?.remainingPasses
+    ? Math.round(originalTaxes * taxReduction.discountRate)
+    : 0;
+  const taxes = Math.max(0, originalTaxes - taxDiscount);
   const netAmount = receivables - maintenance - taxes;
 
   if (receivables <= 0 && maintenance <= 0 && taxes <= 0) {
@@ -542,6 +594,9 @@ export function createLapPendings(game: GameState, playerId: string, now = Date.
       maintenance,
       taxes,
       netAmount,
+      originalTaxes,
+      taxDiscount,
+      taxReductionAdvantageId: taxDiscount > 0 ? taxReduction?.id : undefined,
     },
     status: 'pending',
     createdAt: now,

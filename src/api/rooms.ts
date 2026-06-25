@@ -27,6 +27,7 @@ import type {
   Player,
   PlayerDebt,
   PlayerFinance,
+  PlayerRestriction,
   PlayerTransaction,
   Room,
   RoomSummary,
@@ -42,12 +43,15 @@ import {
   calculateTitleRent,
   createLapPendings,
   createSpaceActionKey,
+  getActivePlayerRestriction,
+  getPlayerAdvantageState,
   getTaxPendingPayableAmount,
   hasCurrentSpaceAction,
   didPassStart,
   getActivePlayers,
   getAvailableBlueprintsForPropertySlot,
   getInitialGameState,
+  isPlayerActionBlocked,
   getTitlePropertySlots,
   hydrateGameState,
   moveBoardPosition,
@@ -127,6 +131,66 @@ function createDebt(
     status: 'active' as const,
     createdAt: now,
     updatedAt: now,
+  };
+}
+
+function requirePlayerCanAct(game: GameState, playerId: string, message?: string) {
+  if (isPlayerActionBlocked(game, playerId)) {
+    throw new Error(message ?? 'Jogador travado: libere a penalidade antes de realizar esta acao.');
+  }
+}
+
+function createRestrictionForSpace(
+  game: GameState,
+  playerId: string,
+  boardIndex: number,
+  now: number,
+) {
+  const boardSpace = BOARD_SPACES_BY_INDEX[boardIndex];
+
+  if (boardSpace?.kind !== 'fiscal-embargo' && boardSpace?.kind !== 'bank-block') {
+    return game;
+  }
+
+  if (getActivePlayerRestriction(game, playerId)) {
+    return game;
+  }
+
+  const restrictionId = crypto.randomUUID();
+  const restriction: PlayerRestriction = {
+    id: restrictionId,
+    playerId,
+    kind: boardSpace.kind,
+    boardIndex,
+    startedAtRound: game.round,
+    failedAttempts: 0,
+    status: 'active',
+    createdAt: now,
+  };
+
+  return {
+    ...game,
+    playerRestrictions: {
+      ...game.playerRestrictions,
+      [restrictionId]: restriction,
+    },
+  };
+}
+
+function releaseRestriction(
+  game: GameState,
+  restriction: PlayerRestriction,
+  reason: NonNullable<PlayerRestriction['releaseReason']>,
+  now: number,
+) {
+  return {
+    ...game.playerRestrictions,
+    [restriction.id]: {
+      ...restriction,
+      status: 'released' as const,
+      releasedAt: now,
+      releaseReason: reason,
+    },
   };
 }
 
@@ -804,6 +868,8 @@ export async function requestBankLoan(roomId: string, playerId: string, amount: 
     const game = hydrateGameState(currentGame, players);
     const finance = game.playerFinances[playerId];
 
+    requirePlayerCanAct(game, playerId, 'Jogador travado nao pode solicitar emprestimos.');
+
     if (!finance) {
       throw new Error('Financas do jogador nao encontradas.');
     }
@@ -892,6 +958,8 @@ export async function payDebt(roomId: string, playerId: string, debtId: string, 
     const game = hydrateGameState(currentGame, players);
     const debtorFinance = game.playerFinances[playerId];
     const debt = debtorFinance?.debts?.[debtId];
+
+    requirePlayerCanAct(game, playerId, 'Jogador travado nao pode pagar dividas.');
 
     if (!debtorFinance || !debt || debt.status !== 'active') {
       throw new Error('Divida ativa nao encontrada.');
@@ -1067,6 +1135,8 @@ export async function payTaxPending(roomId: string, playerId: string, taxPending
     ) {
       throw new Error('Imposto pendente nao encontrado.');
     }
+
+    requirePlayerCanAct(game, playerId, 'Jogador travado nao pode pagar impostos.');
 
     const amount = getTaxPendingPayableAmount(game, playerId, taxPending);
 
@@ -1279,6 +1349,8 @@ export async function payDebtWithBankDiscount(roomId: string, playerId: string, 
       throw new Error('Divida elegivel nao encontrada.');
     }
 
+    requirePlayerCanAct(game, playerId, 'Jogador travado nao pode fazer acertos no Banco.');
+
     const paidAmount = calculateBankSettlementAmount(debt.amount);
 
     if (debtorFinance.balance < paidAmount) {
@@ -1364,6 +1436,8 @@ export async function payTaxPendingWithBankDiscount(
       throw new Error('Imposto pendente nao encontrado.');
     }
 
+    requirePlayerCanAct(game, playerId, 'Jogador travado nao pode fazer acertos no Banco.');
+
     const amount = calculateBankSettlementAmount(taxPending.amount);
 
     if (finance.balance < amount) {
@@ -1429,6 +1503,8 @@ export async function confirmRoundPending(roomId: string, playerId: string, pend
         throw new Error('Pendencia de aluguel invalida.');
       }
 
+      requirePlayerCanAct(game, playerId, 'Jogador travado nao pode pagar aluguel.');
+
       const gameWithRent = applyRentPayment(
         game,
         playerId,
@@ -1442,6 +1518,21 @@ export async function confirmRoundPending(roomId: string, playerId: string, pend
         ...gameWithRent,
         roundPendings: {
           ...gameWithRent.roundPendings,
+          [pendingId]: {
+            ...pending,
+            status: 'confirmed',
+            confirmedAt: now,
+          },
+        },
+        updatedAt: now,
+      });
+    }
+
+    if (pending.kind === 'rent-waived-notice') {
+      return toFirebaseValue({
+        ...game,
+        roundPendings: {
+          ...game.roundPendings,
           [pendingId]: {
             ...pending,
             status: 'confirmed',
@@ -1480,6 +1571,15 @@ export async function confirmRoundPending(roomId: string, playerId: string, pend
       netAmount: 0,
     };
     const netAmount = breakdown.netAmount;
+
+    if (netAmount < 0) {
+      requirePlayerCanAct(
+        game,
+        playerId,
+        'Jogador travado nao pode confirmar acertos de contas negativos.',
+      );
+    }
+
     let nextFinance = appendFinanceTransaction(
       {
         ...finance,
@@ -1529,8 +1629,31 @@ export async function confirmRoundPending(roomId: string, playerId: string, pend
       );
     }
 
+    const currentAdvantageState = getPlayerAdvantageState(game, playerId);
+    const shouldConsumeTaxReduction =
+      Boolean(breakdown.taxReductionAdvantageId) &&
+      currentAdvantageState.taxReduction?.id === breakdown.taxReductionAdvantageId;
+    const nextAdvantageState = shouldConsumeTaxReduction
+      ? {
+          ...currentAdvantageState,
+          taxReduction: currentAdvantageState.taxReduction
+            ? {
+                ...currentAdvantageState.taxReduction,
+                remainingPasses: Math.max(
+                  0,
+                  currentAdvantageState.taxReduction.remainingPasses - 1,
+                ),
+              }
+            : undefined,
+        }
+      : currentAdvantageState;
+
     return toFirebaseValue({
       ...game,
+      playerAdvantages: {
+        ...game.playerAdvantages,
+        [playerId]: nextAdvantageState,
+      },
       roundPendings: {
         ...game.roundPendings,
         [pendingId]: {
@@ -1567,6 +1690,8 @@ export async function buyTitle(roomId: string, playerId: string, boardIndex: num
     const titleKey = String(boardIndex);
     const currentTitle = game.titles[titleKey];
     const playerFinance = game.playerFinances[playerId];
+
+    requirePlayerCanAct(game, playerId, 'Jogador travado nao pode comprar titulos.');
 
     if (boardSpace?.kind !== 'street') {
       throw new Error('Esta casa nao possui titulo para compra.');
@@ -1662,6 +1787,8 @@ export async function buildTitleProperty(
     const currentSlotBlueprint = currentSlotProperty
       ? getBlueprint(currentSlotProperty.blueprintKey)
       : undefined;
+
+    requirePlayerCanAct(game, playerId, 'Jogador travado nao pode construir propriedades.');
 
     if (boardSpace?.kind !== 'street') {
       throw new Error('Esta casa nao permite construcao.');
@@ -1793,6 +1920,8 @@ export async function destroyTitleProperty(
     const property = properties.find((item) => item.id === propertyId);
     const blueprint = property ? getBlueprint(property.blueprintKey) : undefined;
 
+    requirePlayerCanAct(game, playerId, 'Jogador travado nao pode destruir propriedades.');
+
     if (boardSpace?.kind !== 'street') {
       throw new Error('Esta casa nao possui propriedades.');
     }
@@ -1874,6 +2003,8 @@ export async function sellTitleToBank(roomId: string, playerId: string, boardInd
     const finance = game.playerFinances[playerId];
     const boardSpace = BOARD_SPACES_BY_INDEX[boardIndex];
 
+    requirePlayerCanAct(game, playerId, 'Jogador travado nao pode vender titulos.');
+
     if (!title || title.ownerId !== playerId || !finance) {
       throw new Error('Titulo do jogador nao encontrado.');
     }
@@ -1945,6 +2076,8 @@ export async function createTitleSaleOffer(
     const title = game.titles[String(boardIndex)];
     const buyer = players.find((player) => player.id === buyerId && player.status !== 'eliminated');
 
+    requirePlayerCanAct(game, sellerId, 'Jogador travado nao pode negociar titulos.');
+
     if (!title || title.ownerId !== sellerId) {
       throw new Error('Titulo do vendedor nao encontrado.');
     }
@@ -1989,6 +2122,8 @@ export async function acceptTitleSaleOffer(roomId: string, buyerId: string, offe
     const now = Date.now();
     const game = hydrateGameState(currentGame, players);
     const offer = game.titleSaleOffers[offerId];
+
+    requirePlayerCanAct(game, buyerId, 'Jogador travado nao pode aceitar propostas.');
 
     if (!offer || offer.buyerId !== buyerId || offer.status !== 'pending') {
       throw new Error('Proposta de venda nao encontrada.');
@@ -2139,6 +2274,8 @@ export async function createPlayerLoanOffer(
       throw new Error('Jogadores ativos nao encontrados.');
     }
 
+    requirePlayerCanAct(game, borrowerId, 'Jogador travado nao pode solicitar emprestimos.');
+
     const projectedScore = calculateProjectedBankScore(game, borrowerId, loanAmount);
 
     if (projectedScore <= 0) {
@@ -2180,6 +2317,8 @@ export async function acceptPlayerLoanOffer(roomId: string, lenderId: string, of
     const now = Date.now();
     const game = hydrateGameState(currentGame, players);
     const offer = game.playerLoanOffers[offerId];
+
+    requirePlayerCanAct(game, lenderId, 'Jogador travado nao pode aceitar emprestimos.');
 
     if (!offer || offer.lenderId !== lenderId || offer.status !== 'pending') {
       throw new Error('Proposta de emprestimo nao encontrada.');
@@ -2336,6 +2475,8 @@ export async function createTitleAuction(
     const game = hydrateGameState(currentGame, players);
     const title = game.titles[String(boardIndex)];
 
+    requirePlayerCanAct(game, sellerId, 'Jogador travado nao pode abrir leiloes.');
+
     if (!title || title.ownerId !== sellerId) {
       throw new Error('Titulo do vendedor nao encontrado.');
     }
@@ -2398,6 +2539,8 @@ export async function placeTitleAuctionBid(
     const highestBid = auction?.highestBidId ? auction.bids[auction.highestBidId] : undefined;
     const minimumBid = Math.max(auction?.initialBid ?? 0, highestBid?.amount ?? 0);
 
+    requirePlayerCanAct(game, bidderId, 'Jogador travado nao pode ofertar em leiloes.');
+
     if (!auction || auction.status !== 'open') {
       throw new Error('Leilao aberto nao encontrado.');
     }
@@ -2454,6 +2597,8 @@ export async function closeTitleAuction(roomId: string, sellerId: string, auctio
     const now = Date.now();
     const game = hydrateGameState(currentGame, players);
     const auction = game.titleAuctions[auctionId];
+
+    requirePlayerCanAct(game, sellerId, 'Jogador travado nao pode fechar leiloes.');
 
     if (!auction || auction.sellerId !== sellerId || auction.status !== 'open') {
       throw new Error('Leilao aberto nao encontrado.');
@@ -2583,9 +2728,43 @@ export async function rollPlayerDice(
     }
 
     const position = game.positions[playerId] ?? 1;
+    const activeRestriction = getActivePlayerRestriction(game, playerId);
+    const isDoubleRoll = roll.diceOne === roll.diceTwo;
+
+    if (activeRestriction && !isDoubleRoll) {
+      return toFirebaseValue({
+        ...game,
+        playerRestrictions: {
+          ...game.playerRestrictions,
+          [activeRestriction.id]: {
+            ...activeRestriction,
+            failedAttempts: activeRestriction.failedAttempts + 1,
+          },
+        },
+        lastRoll: roll,
+        playerLastRolls: {
+          ...game.playerLastRolls,
+          [playerId]: roll,
+        },
+        updatedAt: now,
+      });
+    }
+
+    const unrestrictedGame = activeRestriction
+      ? {
+          ...game,
+          playerRestrictions: releaseRestriction(game, activeRestriction, 'doubles', now),
+        }
+      : game;
     const nextPosition = moveBoardPosition(position, roll.total);
+    const gameWithSpaceRestriction = createRestrictionForSpace(
+      unrestrictedGame,
+      playerId,
+      nextPosition,
+      now,
+    );
     const gameWithRentSettled = createEventPendingForPosition(
-      createRentPendingForPosition(game, playerId, nextPosition, now),
+      createRentPendingForPosition(gameWithSpaceRestriction, playerId, nextPosition, now),
       playerId,
       nextPosition,
       players,

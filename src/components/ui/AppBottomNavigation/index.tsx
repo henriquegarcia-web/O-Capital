@@ -21,7 +21,7 @@ export function AppBottomNavigation({
 
   return (
     <nav className="app-bottom-navigation" aria-label="Menu do aplicativo">
-      <Flex justify="space-around" align="center" gap={4}>
+      <Flex justify="space-around" align="center" gap={2}>
         {visibleItems.map((item) => {
           const Icon = item.icon;
 

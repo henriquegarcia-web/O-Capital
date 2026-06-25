@@ -136,9 +136,10 @@ body {
 
 .bank-app-card,
 .ant-card {
-  border-color: rgb(219 231 226 / 90%);
+  /* border-color: rgb(219 231 226 / 90%); */
   border-radius: 8px;
   box-shadow: 0 10px 26px rgb(6 37 31 / 10%);
+  border: none;
 }
 
 .bank-app-card .ant-card-head {
@@ -157,7 +158,7 @@ body {
   background:
     radial-gradient(circle at top right, rgb(45 212 191 / 26%), transparent 34%),
     linear-gradient(135deg, #10231f 0%, #173b31 48%, #0f172a 100%);
-  border: 1px solid rgb(255 255 255 / 12%);
+  /* border: 1px solid rgb(255 255 255 / 12%); */
 }
 
 .bank-app-card--dark .ant-typography,
@@ -973,6 +974,11 @@ body {
   .banker-config-submit {
     width: 100%;
   }
+
+  .advantage-card__hint {
+    max-width: 100%;
+    text-align: left;
+  }
 }
 
 .bank-money--danger {
@@ -996,6 +1002,81 @@ body {
   min-height: 100%;
   background: rgb(255 255 255 / 12%);
   border-color: rgb(255 255 255 / 18%);
+}
+
+.advantages-list {
+  width: 100%;
+}
+
+.advantage-card {
+  overflow: hidden;
+  background: linear-gradient(135deg, #ffffff, #f8fbfa);
+}
+
+.advantage-card .ant-card-body {
+  padding: 12px;
+}
+
+.advantage-card__content {
+  width: 100%;
+}
+
+.advantage-card__identity,
+.advantage-card__copy {
+  display: flex;
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+}
+
+.advantage-card__copy--desactive * {
+  color: rgba(0, 0, 0, 0.45) !important;
+}
+
+.advantage-card__title,
+.advantage-card__description,
+.advantage-card__hint {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.advantage-card__title {
+  display: block;
+  color: #17211d;
+  line-height: 1;
+  margin: 0 !important;
+}
+
+.advantage-card__description {
+  display: block;
+  line-height: 1.3;
+}
+
+.advantage-card__meta {
+  width: 100%;
+}
+
+.advantage-card__values {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  padding: 10px;
+  background: #f4f8f6;
+  border: 1px solid #e6efeb;
+  border-radius: 8px;
+}
+
+.advantage-card__values .ant-typography {
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.advantage-card__hint {
+  display: block;
+  max-width: 100%;
+  font-size: 11px;
+  line-height: 1.25;
+  text-align: left;
 }
 
 .bank-loan-collapse {

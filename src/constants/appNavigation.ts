@@ -1,6 +1,7 @@
 import {
   BankOutlined,
   CrownOutlined,
+  GiftOutlined,
   HistoryOutlined,
   PlayCircleOutlined,
   ReconciliationOutlined,
@@ -30,6 +31,11 @@ export const APP_MENU_ITEMS = [
     key: 'acoes',
     label: 'Acoes',
     icon: RocketOutlined,
+  },
+  {
+    key: 'vantagens',
+    label: 'Vantagens',
+    icon: GiftOutlined,
   },
   {
     key: 'missoes',

@@ -1,11 +1,12 @@
 ﻿import { useState } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
-import { App, Card, Flex, Modal, Result, Skeleton, Space, Typography } from 'antd';
+import { App, Button, Card, Flex, Modal, Result, Skeleton, Space, Typography } from 'antd';
 
-import { confirmRoundPending } from '@/api';
+import { confirmRoundPending, useRentInsurance as applyRentInsuranceAdvantage } from '@/api';
 import { APP_HISTORY_MENU, APP_MENU_ITEMS, APP_RANKING_MENU, type AppMenuKey } from '@/constants';
 import {
   AppBottomNavigation,
+  AdvantagesMenuPanel,
   BankMenuPanel,
   BankerMatchControlCard,
   CurrentBoardSpaceCard,
@@ -16,7 +17,7 @@ import {
   TitlesMenuPanel,
 } from '@/components/ui';
 import { useCurrentRoomPlayer, useRoom } from '@/hooks';
-import { formatMoney, hydrateGameState } from '@/utils';
+import { formatMoney, getAdvantageQuantity, hydrateGameState } from '@/utils';
 
 function isValidMenuKey(menuKey: string | undefined): menuKey is AppMenuKey {
   if (!menuKey) {
@@ -87,13 +88,18 @@ export function GamePlayersPage() {
     (pending) =>
       pending.playerId === activePlayer.id &&
       pending.status === 'pending' &&
-      ['statement', 'rent', 'event', 'global-event'].includes(pending.kind),
+      ['statement', 'rent', 'event', 'global-event', 'rent-waived-notice'].includes(pending.kind),
   );
   const rentPending = pendingToConfirm?.kind === 'rent' ? pendingToConfirm : undefined;
   const eventPending =
     pendingToConfirm?.kind === 'event' || pendingToConfirm?.kind === 'global-event'
       ? pendingToConfirm
       : undefined;
+  const rentWaivedNotice =
+    pendingToConfirm?.kind === 'rent-waived-notice' ? pendingToConfirm : undefined;
+  const canUseRentInsurance =
+    Boolean(rentPending) &&
+    getAdvantageQuantity(hydratedGame, activePlayer.id, 'rent-insurance') > 0;
   const statementBreakdown =
     pendingToConfirm?.kind === 'statement' && pendingToConfirm.breakdown
       ? pendingToConfirm.breakdown
@@ -103,6 +109,21 @@ export function GamePlayersPage() {
           taxes: 0,
           netAmount: 0,
         };
+
+  async function handleUseRentInsurance() {
+    if (!rentPending) return;
+
+    setConfirmingStatement(true);
+
+    try {
+      await applyRentInsuranceAdvantage(activeRoom.id, activePlayer.id, rentPending.id);
+      message.success('Seguro Aluguel utilizado.');
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : 'Nao foi possivel usar o seguro.');
+    } finally {
+      setConfirmingStatement(false);
+    }
+  }
 
   async function handleConfirmPending() {
     if (!pendingToConfirm) return;
@@ -153,6 +174,13 @@ export function GamePlayersPage() {
         players={players}
         currentPlayer={activePlayer}
       />
+    ) : menuKey === 'vantagens' ? (
+      <AdvantagesMenuPanel
+        room={activeRoom}
+        game={hydratedGame}
+        players={players}
+        currentPlayer={activePlayer}
+      />
     ) : menuKey === 'ranking' ? (
       <RankingMenuPanel game={hydratedGame} players={players} currentPlayer={activePlayer} />
     ) : menuKey === 'historico' ? (
@@ -172,11 +200,13 @@ export function GamePlayersPage() {
         title={
           pendingToConfirm?.kind === 'rent'
             ? 'Pagamento de aluguel'
-            : eventPending
-              ? eventPending.kind === 'global-event'
-                ? 'Evento global'
-                : 'Evento'
-              : 'Prestacao de contas'
+            : rentWaivedNotice
+              ? 'Seguro Aluguel utilizado'
+              : eventPending
+                ? eventPending.kind === 'global-event'
+                  ? 'Evento global'
+                  : 'Evento'
+                : 'Prestacao de contas'
         }
         open={Boolean(pendingToConfirm)}
         okText="Confirmar"
@@ -202,6 +232,33 @@ export function GamePlayersPage() {
                 <Typography.Text strong className="bank-money--danger">
                   {formatMoney(rentPending.amount)}
                 </Typography.Text>
+              </div>
+              {canUseRentInsurance ? (
+                <Card size="small" className="bank-app-card">
+                  <Flex align="center" justify="space-between" gap={12} wrap>
+                    <Space orientation="vertical" size={0}>
+                      <Typography.Text strong>Seguro Aluguel disponivel</Typography.Text>
+                      <Typography.Text type="secondary">
+                        Use para cancelar este aluguel.
+                      </Typography.Text>
+                    </Space>
+                    <Button
+                      type="primary"
+                      loading={confirmingStatement}
+                      onClick={() => void handleUseRentInsurance()}
+                    >
+                      Usar
+                    </Button>
+                  </Flex>
+                </Card>
+              ) : null}
+            </>
+          ) : rentWaivedNotice ? (
+            <>
+              <Typography.Text>{rentWaivedNotice.message}</Typography.Text>
+              <div className="bank-statement-total">
+                <Typography.Text type="secondary">Aluguel cancelado</Typography.Text>
+                <Typography.Text strong>{formatMoney(rentWaivedNotice.amount)}</Typography.Text>
               </div>
             </>
           ) : eventPending ? (
@@ -240,6 +297,22 @@ export function GamePlayersPage() {
                   {formatMoney(statementBreakdown.taxes)}
                 </Typography.Text>
               </Flex>
+              {statementBreakdown.taxDiscount ? (
+                <>
+                  <Flex justify="space-between" gap={12}>
+                    <Typography.Text type="secondary">Impostos originais</Typography.Text>
+                    <Typography.Text>
+                      {formatMoney(statementBreakdown.originalTaxes ?? 0)}
+                    </Typography.Text>
+                  </Flex>
+                  <Flex justify="space-between" gap={12}>
+                    <Typography.Text type="secondary">Reducao de Impostos</Typography.Text>
+                    <Typography.Text strong className="bank-money--success">
+                      - {formatMoney(statementBreakdown.taxDiscount)}
+                    </Typography.Text>
+                  </Flex>
+                </>
+              ) : null}
               <div className="bank-statement-total">
                 <Typography.Text type="secondary">Valor final</Typography.Text>
                 <Typography.Text
