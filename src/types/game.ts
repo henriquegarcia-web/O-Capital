@@ -111,6 +111,7 @@ export type PlayerTransactionKind =
   | 'debt-created'
   | 'stock-buy'
   | 'stock-sell'
+  | 'mission-reward'
   | 'event';
 
 export type PlayerTransaction = {
@@ -296,6 +297,26 @@ export type PlayerAdvantageState = {
   usedInRound?: number;
 };
 
+export type MissionKey =
+  | 'first-title'
+  | 'first-property'
+  | 'first-rent'
+  | 'first-investment'
+  | 'fortune-100k'
+  | 'fortune-250k'
+  | 'fortune-500k'
+  | 'sell-title-player'
+  | 'buy-title-player'
+  | 'three-streets-neighborhood'
+  | 'five-hotels'
+  | 'five-businesses';
+
+export type MissionCategoryKey = 'initial' | 'economic' | 'advanced';
+
+export type PlayerMissionState = {
+  claimed: Partial<Record<MissionKey, number>>;
+};
+
 export type StockKey = 'gold11' | 'bbas3' | 'petr4' | 'btc';
 export type StockRisk = 'low' | 'medium' | 'high';
 
@@ -362,6 +383,7 @@ export type GameState = {
   titleAuctions: Record<string, TitleAuction>;
   playerLoanOffers: Record<string, PlayerLoanOffer>;
   playerAdvantages: Record<string, PlayerAdvantageState>;
+  playerMissions: Record<string, PlayerMissionState>;
   playerRestrictions: Record<string, PlayerRestriction>;
   stockMarket: Partial<Record<StockKey, StockMarketAsset>>;
   playerStocks: Record<string, PlayerStockPortfolio>;

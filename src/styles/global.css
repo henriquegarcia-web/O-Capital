@@ -1542,3 +1542,68 @@ body {
   line-height: 1.25;
   overflow-wrap: anywhere;
 }
+
+.mission-summary-metric {
+  display: flex;
+  flex: 1 1 124px;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 12px;
+  background: rgb(255 255 255 / 10%);
+  border: 1px solid rgb(255 255 255 / 16%);
+  border-radius: 8px;
+}
+
+.mission-summary-metric__label,
+.mission-summary-metric__value {
+  color: #ffffff !important;
+}
+
+.mission-summary-metric__label {
+  font-size: 11px;
+  line-height: 1.25;
+  opacity: 0.76;
+}
+
+.mission-summary-metric__value {
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.mission-card {
+  overflow: hidden;
+  background: linear-gradient(135deg, #ffffff, #f8fbfa);
+}
+
+.mission-card .ant-card-body {
+  padding: 12px;
+}
+
+.mission-card__content,
+.mission-card__progress {
+  width: 100%;
+}
+
+.mission-card__identity,
+.mission-card__copy {
+  min-width: 0;
+}
+
+.mission-card__copy {
+  flex: 1 1 auto;
+}
+
+.mission-card__title,
+.mission-card__reward {
+  display: block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.mission-card__title {
+  margin: 0 !important;
+  color: #17211d !important;
+  line-height: 1.1 !important;
+}

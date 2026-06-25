@@ -9,6 +9,7 @@ export * from './DiceRollOverlay';
 export * from './GameBoard';
 export * from './HistoryMenuPanel';
 export * from './MatchControlCard';
+export * from './MissionsMenuPanel';
 export * from './PlayerFinanceCard';
 export * from './PlayerJoinCard';
 export * from './RankingMenuPanel';

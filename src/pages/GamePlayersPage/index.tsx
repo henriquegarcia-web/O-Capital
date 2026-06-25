@@ -12,6 +12,7 @@ import {
   CurrentBoardSpaceCard,
   HistoryMenuPanel,
   MatchControlCard,
+  MissionsMenuPanel,
   PlayerFinanceCard,
   RankingMenuPanel,
   StocksMenuPanel,
@@ -184,6 +185,8 @@ export function GamePlayersPage() {
         players={players}
         currentPlayer={activePlayer}
       />
+    ) : menuKey === 'missoes' ? (
+      <MissionsMenuPanel room={activeRoom} game={hydratedGame} currentPlayer={activePlayer} />
     ) : menuKey === 'ranking' ? (
       <RankingMenuPanel game={hydratedGame} players={players} currentPlayer={activePlayer} />
     ) : menuKey === 'historico' ? (
