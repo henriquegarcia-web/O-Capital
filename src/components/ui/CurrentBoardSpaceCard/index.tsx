@@ -42,7 +42,14 @@ import {
   PROPERTY_BLUEPRINTS,
   formatBalanceRate,
 } from '@/constants';
-import type { AdvantageKey, GameState, Player, PlayerDebt, TaxPending } from '@/types';
+import type {
+  AdvantageKey,
+  BoardSpaceKind,
+  GameState,
+  Player,
+  PlayerDebt,
+  TaxPending,
+} from '@/types';
 import {
   calculateBankSettlementAmount,
   calculateFederalTaxAudit,
@@ -83,6 +90,31 @@ function getOwnerName(ownerId: string | null | undefined, players: Player[]) {
 
 function getBlueprint(blueprintKey: string) {
   return PROPERTY_BLUEPRINTS.find((blueprint) => blueprint.key === blueprintKey);
+}
+
+function getSpecialSpaceStatus(kind: BoardSpaceKind) {
+  switch (kind) {
+    case 'start':
+      return 'Ponto de partida. Ao passar por aqui, seus recebiveis, manutencoes e impostos da rodada sao calculados.';
+    case 'event':
+      return 'Casa de Evento. Confirme o card sorteado para aplicar o efeito desta parada.';
+    case 'global-event':
+      return 'Casa de Evento Global. O efeito sorteado pode impactar varios jogadores da partida.';
+    case 'bank':
+      return 'Casa Banco. Aqui voce pode fazer acertos com desconto e organizar suas dividas.';
+    case 'tax':
+      return 'Receita Federal. Resolva auditorias, impostos pendentes e possiveis ajustes fiscais.';
+    case 'advantage-market':
+      return 'Mercado de Vantagens. Compre uma vantagem para usar em momentos estrategicos.';
+    case 'fiscal-embargo':
+      return 'Embargo Fiscal. Tire numeros iguais para liberar suas acoes ou use uma Protecao Fiscal.';
+    case 'bank-block':
+      return 'Bloqueio Bancario. Tire numeros iguais para liberar suas acoes ou regularize a penalidade.';
+    case 'holiday':
+      return 'Hoje e feriado e voce tirou o dia para descansar.';
+    default:
+      return 'Casa especial ativa.';
+  }
 }
 
 export function CurrentBoardSpaceCard({
@@ -220,7 +252,7 @@ export function CurrentBoardSpaceCard({
     ? ownerName
       ? `${ownerName} e dono desse terreno`
       : 'Disponivel para compra'
-    : 'Casa especial estruturada para logica futura';
+    : getSpecialSpaceStatus(boardSpace.kind);
 
   function getSlotLabel(slotIndex: number) {
     const property = propertySlotItems[slotIndex];

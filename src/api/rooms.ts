@@ -32,6 +32,7 @@ import type {
   PlayerTransaction,
   Room,
   RoomSummary,
+  RoundPending,
   StockKey,
 } from '@/types';
 import {
@@ -405,28 +406,39 @@ function createEventPendingForPosition(
   }
 
   const card = cards[Math.abs(now + boardIndex + game.round) % cards.length];
-  const pendingId = crypto.randomUUID();
   const isGlobal = boardSpace.kind === 'global-event';
+  const eventKind = boardSpace.kind;
+  const affectedPlayerIds = isGlobal
+    ? players.filter((player) => player.status !== 'eliminated').map((player) => player.id)
+    : [playerId];
+  const eventPendings: Record<string, RoundPending> = Object.fromEntries(
+    affectedPlayerIds.map((affectedPlayerId) => {
+      const pendingId = crypto.randomUUID();
+
+      return [
+        pendingId,
+        {
+          id: pendingId,
+          playerId: affectedPlayerId,
+          affectedPlayerIds: [affectedPlayerId],
+          kind: eventKind,
+          amount: card.amount,
+          round: game.round,
+          boardIndex,
+          message: card.message,
+          eventTone: card.tone,
+          status: 'pending' as const,
+          createdAt: now,
+        },
+      ];
+    }),
+  );
 
   return {
     ...game,
     roundPendings: {
       ...game.roundPendings,
-      [pendingId]: {
-        id: pendingId,
-        playerId,
-        affectedPlayerIds: isGlobal
-          ? players.filter((player) => player.status !== 'eliminated').map((player) => player.id)
-          : [playerId],
-        kind: boardSpace.kind,
-        amount: card.amount,
-        round: game.round,
-        boardIndex,
-        message: card.message,
-        eventTone: card.tone,
-        status: 'pending' as const,
-        createdAt: now,
-      },
+      ...eventPendings,
     },
   };
 }
@@ -3023,7 +3035,7 @@ export async function finishPlayerTurn(roomId: string, playerId: string) {
     }
 
     const { nextCompletedTurns, nextPlayerId, nextRound } = advanceTurn(game, roll);
-    const nextDay = (game.day ?? 1) + 1;
+    const nextDay = (game.day ?? 0) + 1;
     const stockMarket = advanceStockMarketDay(game.stockMarket, nextDay, now);
 
     return toFirebaseValue({

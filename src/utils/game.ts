@@ -100,7 +100,7 @@ export function getInitialGameState(players: Player[], now = Date.now()): GameSt
   return {
     status: 'waiting',
     round: 1,
-    day: 1,
+    day: 0,
     turnPlayerId: playerOrder[0] ?? null,
     turnStartedAt: null,
     playerOrder,
@@ -121,7 +121,7 @@ export function getInitialGameState(players: Player[], now = Date.now()): GameSt
     playerLoanOffers: {},
     playerAdvantages: {},
     playerRestrictions: {},
-    stockMarket: createInitialStockMarket(1, now),
+    stockMarket: createInitialStockMarket(0, now),
     playerStocks: Object.fromEntries(playerOrder.map((playerId) => [playerId, { holdings: {} }])),
     updatedAt: now,
   };
@@ -145,7 +145,7 @@ export function hydrateGameState(game: GameState | undefined, players: Player[])
       hydratePlayerFinance(playerId, baseGame.playerFinances?.[playerId], now),
     ]),
   );
-  const day = baseGame.day ?? 1;
+  const day = baseGame.day ?? 0;
   const playerStocks = Object.fromEntries(
     playerOrder.map((playerId) => [
       playerId,

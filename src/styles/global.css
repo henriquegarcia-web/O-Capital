@@ -1363,9 +1363,54 @@ body {
   color: #ff7a00 !important;
 }
 
-.stocks-summary-card__metric {
-  flex: 1 1 180px;
+.stocks-summary-metric {
+  display: flex;
+  flex: 1 1 124px;
+  flex-direction: column;
+  gap: 4px;
   min-width: 0;
+  min-height: 96px;
+  padding: 12px;
+  background: rgb(255 255 255 / 10%);
+  border: 1px solid rgb(255 255 255 / 16%);
+  border-radius: 8px;
+}
+
+.stocks-summary-metric__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  color: #7dd3fc;
+  font-size: 19px;
+}
+
+.stocks-summary-metric__label,
+.stocks-summary-metric__value {
+  color: #ffffff !important;
+}
+
+.stocks-summary-metric__label {
+  font-size: 11px;
+  line-height: 1.25;
+  opacity: 0.76;
+}
+
+.stocks-summary-metric__value {
+  margin-top: auto;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.stocks-summary-metric__value.bank-money--success {
+  color: #86efac !important;
+}
+
+.stocks-summary-metric__value.bank-money--danger {
+  color: #fecdd3 !important;
 }
 
 .stocks-trade-field {
@@ -1411,19 +1456,26 @@ body {
   line-height: 1.15 !important;
 }
 
-.stock-chart {
+.stock-chart-frame {
   display: block;
   width: 100%;
-  height: 92px;
+  padding: 9px;
   background: linear-gradient(180deg, #f8fbfa 0%, #eef6f2 100%);
   border: 1px solid #e0ebe6;
   border-radius: 8px;
 }
 
-.stock-chart--empty {
+.stock-chart-frame--empty {
+  min-height: 112px;
   background:
     linear-gradient(90deg, transparent 49%, #e5eee9 50%, transparent 51%),
     linear-gradient(180deg, #f8fbfa 0%, #eef6f2 100%);
+}
+
+.stock-chart {
+  display: block;
+  width: 100%;
+  height: 92px;
 }
 
 .stock-chart polygon,
@@ -1477,6 +1529,10 @@ body {
   font-size: 12px;
   line-height: 1.2;
   overflow-wrap: anywhere;
+}
+
+.stock-card__result-value {
+  min-width: 0;
 }
 
 .stock-card__behavior {

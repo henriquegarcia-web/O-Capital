@@ -2,7 +2,11 @@ import {
   AreaChartOutlined,
   ArrowDownOutlined,
   ArrowUpOutlined,
+  BarChartOutlined,
+  DollarOutlined,
   LineChartOutlined,
+  NumberOutlined,
+  RiseOutlined,
   SwapOutlined,
 } from '@ant-design/icons';
 import {
@@ -15,19 +19,21 @@ import {
   Segmented,
   Select,
   Space,
-  Statistic,
   Tag,
   Typography,
 } from 'antd';
-import { useMemo } from 'react';
 
 import { buyPlayerStock, sellPlayerStock } from '@/api';
 import type { GameState, Player, Room, StockKey, StockMarketAsset } from '@/types';
+import type { ReactNode } from 'react';
 import {
+  calculatePortfolioCost,
+  calculatePortfolioQuantity,
   calculatePortfolioValue,
   formatMoney,
   getStockDailyChange,
   getStockHistory,
+  getStockPriceRange,
   STOCK_DEFINITIONS,
   STOCK_RISK_COLORS,
   STOCK_RISK_LABELS,
@@ -49,11 +55,46 @@ function formatPercent(value: number) {
   return `${value >= 0 ? '+' : ''}${(value * 100).toFixed(1)}%`;
 }
 
+function calculateReturnRate(currentValue: number, invested: number) {
+  if (invested <= 0) {
+    return 0;
+  }
+
+  return (currentValue - invested) / invested;
+}
+
+type SummaryMetricProps = {
+  icon: ReactNode;
+  label: string;
+  value: string;
+  tone?: 'success' | 'danger';
+};
+
+function SummaryMetric({ icon, label, tone, value }: SummaryMetricProps) {
+  return (
+    <div className="stocks-summary-metric">
+      <div className="stocks-summary-metric__icon">{icon}</div>
+      <Typography.Text className="stocks-summary-metric__label">{label}</Typography.Text>
+      <Typography.Text
+        className={
+          tone === 'success'
+            ? 'stocks-summary-metric__value bank-money--success'
+            : tone === 'danger'
+              ? 'stocks-summary-metric__value bank-money--danger'
+              : 'stocks-summary-metric__value'
+        }
+      >
+        {value}
+      </Typography.Text>
+    </div>
+  );
+}
+
 function StockSparkline({ asset }: { asset: StockMarketAsset | undefined }) {
   const history = getStockHistory(asset);
 
   if (history.length <= 1) {
-    return <div className="stock-chart stock-chart--empty" />;
+    return <div className="stock-chart-frame stock-chart-frame--empty" />;
   }
 
   const width = 280;
@@ -75,16 +116,18 @@ function StockSparkline({ asset }: { asset: StockMarketAsset | undefined }) {
   const change = getStockDailyChange(asset);
 
   return (
-    <svg className="stock-chart" viewBox={`0 0 ${width} ${height}`} role="img">
-      <polygon
-        points={areaPoints}
-        className={change >= 0 ? 'stock-chart__area--up' : 'stock-chart__area--down'}
-      />
-      <polyline
-        points={points.join(' ')}
-        className={change >= 0 ? 'stock-chart__line--up' : 'stock-chart__line--down'}
-      />
-    </svg>
+    <div className="stock-chart-frame">
+      <svg className="stock-chart" viewBox={`0 0 ${width} ${height}`} role="img">
+        <polygon
+          points={areaPoints}
+          className={change >= 0 ? 'stock-chart__area--up' : 'stock-chart__area--down'}
+        />
+        <polyline
+          points={points.join(' ')}
+          className={change >= 0 ? 'stock-chart__line--up' : 'stock-chart__line--down'}
+        />
+      </svg>
+    </div>
   );
 }
 
@@ -92,25 +135,27 @@ export function StocksMenuPanel({ currentPlayer, game, room }: StocksMenuPanelPr
   const { message, modal } = App.useApp();
   const [form] = Form.useForm<StockTradeFormValues>();
   const portfolio = game.playerStocks[currentPlayer.id] ?? { holdings: {} };
+  const availableBalance = game.playerFinances[currentPlayer.id]?.balance ?? 0;
   const portfolioValue = calculatePortfolioValue(portfolio, game.stockMarket);
+  const portfolioCost = calculatePortfolioCost(portfolio);
+  const portfolioQuantity = calculatePortfolioQuantity(portfolio);
+  const portfolioResult = portfolioValue - portfolioCost;
   const stockOptions = STOCK_DEFINITIONS.map((stock) => ({
     value: stock.key,
     label: `${stock.name} (${stock.ticker})`,
   }));
   const selectedStockKey = Form.useWatch('stockKey', form);
-  const selectedQuantity = Form.useWatch('quantity', form) ?? 0;
+  const selectedQuantity = Number(Form.useWatch('quantity', form) ?? 0);
   const selectedAction = Form.useWatch('action', form) ?? 'buy';
   const selectedAsset = selectedStockKey ? game.stockMarket[selectedStockKey] : undefined;
   const selectedTotal = selectedAsset ? selectedAsset.price * selectedQuantity : 0;
-  const totalInvested = useMemo(
-    () =>
-      Object.values(portfolio.holdings).reduce(
-        (total, holding) => total + (holding?.quantity ?? 0) * (holding?.averagePrice ?? 0),
-        0,
-      ),
-    [portfolio.holdings],
-  );
-  const portfolioResult = portfolioValue - totalInvested;
+  const selectedHolding = selectedStockKey ? portfolio.holdings[selectedStockKey] : undefined;
+  const isTradeInvalid =
+    !selectedStockKey ||
+    !selectedAsset ||
+    selectedQuantity <= 0 ||
+    (selectedAction === 'buy' && selectedTotal > availableBalance) ||
+    (selectedAction === 'sell' && (selectedHolding?.quantity ?? 0) < selectedQuantity);
 
   async function handleSubmit(values: StockTradeFormValues) {
     const stock = STOCK_DEFINITIONS.find((item) => item.key === values.stockKey);
@@ -170,21 +215,27 @@ export function StocksMenuPanel({ currentPlayer, game, room }: StocksMenuPanelPr
           </Flex>
 
           <Flex gap={10} wrap>
-            <Card size="small" className="bank-page-metric stocks-summary-card__metric">
-              <Statistic
-                title="Carteira"
-                value={portfolioValue}
-                formatter={(value) => formatMoney(Number(value))}
-              />
-            </Card>
-            <Card size="small" className="bank-page-metric stocks-summary-card__metric">
-              <Statistic
-                title="Resultado"
-                value={portfolioResult}
-                formatter={(value) => formatMoney(Number(value))}
-                valueStyle={{ color: portfolioResult >= 0 ? '#86efac' : '#fecdd3' }}
-              />
-            </Card>
+            <SummaryMetric
+              icon={<NumberOutlined />}
+              label="Cotas"
+              value={String(portfolioQuantity)}
+            />
+            <SummaryMetric
+              icon={<DollarOutlined />}
+              label="Valor investido"
+              value={formatMoney(portfolioCost)}
+            />
+            <SummaryMetric
+              icon={<RiseOutlined />}
+              label="Lucro/prejuizo"
+              value={formatMoney(portfolioResult)}
+              tone={portfolioResult >= 0 ? 'success' : 'danger'}
+            />
+            <SummaryMetric
+              icon={<BarChartOutlined />}
+              label="Patrimonio atual"
+              value={formatMoney(portfolioValue)}
+            />
           </Flex>
         </Space>
       </Card>
@@ -242,8 +293,8 @@ export function StocksMenuPanel({ currentPlayer, game, room }: StocksMenuPanelPr
                 <Typography.Text strong>{formatMoney(selectedTotal)}</Typography.Text>
               </div>
 
-              <Button type="primary" htmlType="submit" block>
-                Aplicar operacao
+              <Button type="primary" htmlType="submit" block disabled={isTradeInvalid}>
+                Confirmar operacao
               </Button>
             </Space>
           </Form>
@@ -257,6 +308,8 @@ export function StocksMenuPanel({ currentPlayer, game, room }: StocksMenuPanelPr
         const currentValue = (holding?.quantity ?? 0) * (asset?.price ?? 0);
         const invested = (holding?.quantity ?? 0) * (holding?.averagePrice ?? 0);
         const result = currentValue - invested;
+        const resultRate = calculateReturnRate(currentValue, invested);
+        const priceRange = getStockPriceRange(asset);
 
         return (
           <Card key={stock.key} className="bank-app-card stock-card">
@@ -291,17 +344,28 @@ export function StocksMenuPanel({ currentPlayer, game, room }: StocksMenuPanelPr
                   <Typography.Text strong>{holding?.quantity ?? 0}</Typography.Text>
                 </div>
                 <div>
-                  <Typography.Text type="secondary">Valor</Typography.Text>
-                  <Typography.Text strong>{formatMoney(currentValue)}</Typography.Text>
+                  <Typography.Text type="secondary">Valor investido</Typography.Text>
+                  <Typography.Text strong>{formatMoney(invested)}</Typography.Text>
                 </div>
                 <div>
                   <Typography.Text type="secondary">Resultado</Typography.Text>
-                  <Typography.Text
-                    strong
-                    className={result >= 0 ? 'bank-money--success' : 'bank-money--danger'}
-                  >
-                    {formatMoney(result)}
-                  </Typography.Text>
+                  <Space size={4} wrap className="stock-card__result-value">
+                    <Typography.Text strong>{formatMoney(currentValue)}</Typography.Text>
+                    <Typography.Text
+                      strong
+                      className={result >= 0 ? 'bank-money--success' : 'bank-money--danger'}
+                    >
+                      ({formatPercent(resultRate)})
+                    </Typography.Text>
+                  </Space>
+                </div>
+                <div>
+                  <Typography.Text type="secondary">Maior preco</Typography.Text>
+                  <Typography.Text strong>{formatMoney(priceRange.high)}</Typography.Text>
+                </div>
+                <div>
+                  <Typography.Text type="secondary">Menor preco</Typography.Text>
+                  <Typography.Text strong>{formatMoney(priceRange.low)}</Typography.Text>
                 </div>
               </Flex>
 

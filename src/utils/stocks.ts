@@ -134,7 +134,7 @@ function createStockAsset(definition: StockDefinition, day: number, now: number)
   };
 }
 
-export function createInitialStockMarket(day = 1, now = Date.now()) {
+export function createInitialStockMarket(day = 0, now = Date.now()) {
   return Object.fromEntries(
     STOCK_DEFINITIONS.map((definition) => [definition.key, createStockAsset(definition, day, now)]),
   ) as Record<StockKey, StockMarketAsset>;
@@ -142,7 +142,7 @@ export function createInitialStockMarket(day = 1, now = Date.now()) {
 
 export function hydrateStockMarket(
   stockMarket: GameState['stockMarket'] | undefined,
-  day = 1,
+  day = 0,
   now = Date.now(),
 ) {
   return Object.fromEntries(
@@ -197,7 +197,7 @@ export function advanceStockMarketDay(
   day: number,
   now = Date.now(),
 ) {
-  const hydratedMarket = hydrateStockMarket(stockMarket, Math.max(1, day - 1), now);
+  const hydratedMarket = hydrateStockMarket(stockMarket, Math.max(0, day - 1), now);
 
   return Object.fromEntries(
     STOCK_DEFINITIONS.map((definition) => {
@@ -250,6 +250,43 @@ export function getStockDailyChange(asset: StockMarketAsset | undefined) {
   }
 
   return (asset.price - asset.previousPrice) / asset.previousPrice;
+}
+
+export function getStockPriceRange(asset: StockMarketAsset | undefined) {
+  const prices = getStockHistory(asset).map((point) => point.price);
+
+  if (prices.length === 0) {
+    return {
+      high: asset?.price ?? 0,
+      low: asset?.price ?? 0,
+    };
+  }
+
+  return {
+    high: Math.max(...prices),
+    low: Math.min(...prices),
+  };
+}
+
+export function calculatePortfolioCost(portfolio: PlayerStockPortfolio | undefined) {
+  const hydratedPortfolio = hydratePlayerStockPortfolio(portfolio);
+
+  return Object.values(hydratedPortfolio.holdings).reduce((total, holding) => {
+    if (!holding) {
+      return total;
+    }
+
+    return total + holding.quantity * holding.averagePrice;
+  }, 0);
+}
+
+export function calculatePortfolioQuantity(portfolio: PlayerStockPortfolio | undefined) {
+  const hydratedPortfolio = hydratePlayerStockPortfolio(portfolio);
+
+  return Object.values(hydratedPortfolio.holdings).reduce(
+    (total, holding) => total + (holding?.quantity ?? 0),
+    0,
+  );
 }
 
 export function calculatePortfolioValue(
