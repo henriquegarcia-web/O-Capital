@@ -125,6 +125,7 @@ export function MatchControlCard({ currentPlayer, players, room }: MatchControlC
               </Tag>
             </Descriptions.Item>
             <Descriptions.Item label="Rodada">{game.round}</Descriptions.Item>
+            <Descriptions.Item label="Dia">{game.day}</Descriptions.Item>
           </Descriptions>
 
           <Flex gap={10} wrap>

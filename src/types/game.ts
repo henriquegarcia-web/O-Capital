@@ -109,6 +109,8 @@ export type PlayerTransactionKind =
   | 'rent-paid'
   | 'rent-received'
   | 'debt-created'
+  | 'stock-buy'
+  | 'stock-sell'
   | 'event';
 
 export type PlayerTransaction = {
@@ -294,6 +296,33 @@ export type PlayerAdvantageState = {
   usedInRound?: number;
 };
 
+export type StockKey = 'gold11' | 'bbas3' | 'petr4' | 'btc';
+export type StockRisk = 'low' | 'medium' | 'high';
+
+export type StockPricePoint = {
+  day: number;
+  price: number;
+  createdAt: number;
+};
+
+export type StockMarketAsset = {
+  key: StockKey;
+  price: number;
+  previousPrice: number;
+  history: Record<string, StockPricePoint>;
+  updatedAtDay: number;
+};
+
+export type PlayerStockHolding = {
+  stockKey: StockKey;
+  quantity: number;
+  averagePrice: number;
+};
+
+export type PlayerStockPortfolio = {
+  holdings: Partial<Record<StockKey, PlayerStockHolding>>;
+};
+
 export type PlayerRestrictionKind = 'fiscal-embargo' | 'bank-block';
 export type PlayerRestrictionStatus = 'active' | 'released';
 
@@ -315,6 +344,7 @@ export type GameStatus = 'waiting' | 'playing' | 'paused' | 'finished';
 export type GameState = {
   status: GameStatus;
   round: number;
+  day: number;
   turnPlayerId: string | null;
   turnStartedAt: number | null;
   playerOrder: string[];
@@ -333,6 +363,8 @@ export type GameState = {
   playerLoanOffers: Record<string, PlayerLoanOffer>;
   playerAdvantages: Record<string, PlayerAdvantageState>;
   playerRestrictions: Record<string, PlayerRestriction>;
+  stockMarket: Partial<Record<StockKey, StockMarketAsset>>;
+  playerStocks: Record<string, PlayerStockPortfolio>;
   startedAt?: number;
   pausedAt?: number;
   finishedAt?: number;

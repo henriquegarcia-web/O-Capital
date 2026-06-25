@@ -14,6 +14,7 @@ import {
   MatchControlCard,
   PlayerFinanceCard,
   RankingMenuPanel,
+  StocksMenuPanel,
   TitlesMenuPanel,
 } from '@/components/ui';
 import { useCurrentRoomPlayer, useRoom } from '@/hooks';
@@ -174,6 +175,8 @@ export function GamePlayersPage() {
         players={players}
         currentPlayer={activePlayer}
       />
+    ) : menuKey === 'acoes' ? (
+      <StocksMenuPanel room={activeRoom} game={hydratedGame} currentPlayer={activePlayer} />
     ) : menuKey === 'vantagens' ? (
       <AdvantagesMenuPanel
         room={activeRoom}

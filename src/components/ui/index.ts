@@ -16,5 +16,5 @@ export * from './PlayersGrid';
 export * from './RoomCreateCard';
 export * from './RoomInfoCard';
 export * from './RoomsGrid';
+export * from './StocksMenuPanel';
 export * from './TitlesMenuPanel';
-

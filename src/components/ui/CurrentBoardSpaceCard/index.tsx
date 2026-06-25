@@ -675,14 +675,15 @@ export function CurrentBoardSpaceCard({
                   align="center"
                   justify="space-between"
                   gap={10}
-                  wrap
                   className="board-space-property-slot"
                 >
-                  <Space orientation="vertical" size={0}>
+                  <Flex vertical gap={2}>
                     <Typography.Text strong>{advantage.name}</Typography.Text>
-                    <Typography.Text type="secondary">{advantage.shortDescription}</Typography.Text>
+                    <Typography.Text type="secondary" style={{ lineHeight: 1.2 }}>
+                      {advantage.shortDescription}
+                    </Typography.Text>
                     <Typography.Text strong>{formatMoney(advantage.cost)}</Typography.Text>
-                  </Space>
+                  </Flex>
                   <Button
                     size="small"
                     type="primary"

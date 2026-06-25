@@ -19,6 +19,12 @@ import type {
   TaxPending,
   TitleOwnership,
 } from '@/types';
+import {
+  calculatePortfolioValue,
+  createInitialStockMarket,
+  hydratePlayerStockPortfolio,
+  hydrateStockMarket,
+} from './stocks';
 
 export const INITIAL_PLAYER_BALANCE = GAME_BALANCE.economy.initialPlayerBalance;
 export const BANK_LOAN_INTEREST_RATE = GAME_BALANCE.bank.loanInterestRate;
@@ -94,6 +100,7 @@ export function getInitialGameState(players: Player[], now = Date.now()): GameSt
   return {
     status: 'waiting',
     round: 1,
+    day: 1,
     turnPlayerId: playerOrder[0] ?? null,
     turnStartedAt: null,
     playerOrder,
@@ -114,6 +121,8 @@ export function getInitialGameState(players: Player[], now = Date.now()): GameSt
     playerLoanOffers: {},
     playerAdvantages: {},
     playerRestrictions: {},
+    stockMarket: createInitialStockMarket(1, now),
+    playerStocks: Object.fromEntries(playerOrder.map((playerId) => [playerId, { holdings: {} }])),
     updatedAt: now,
   };
 }
@@ -136,6 +145,13 @@ export function hydrateGameState(game: GameState | undefined, players: Player[])
       hydratePlayerFinance(playerId, baseGame.playerFinances?.[playerId], now),
     ]),
   );
+  const day = baseGame.day ?? 1;
+  const playerStocks = Object.fromEntries(
+    playerOrder.map((playerId) => [
+      playerId,
+      hydratePlayerStockPortfolio(baseGame.playerStocks?.[playerId]),
+    ]),
+  );
   const turnPlayerId =
     baseGame.turnPlayerId && playerOrder.includes(baseGame.turnPlayerId)
       ? baseGame.turnPlayerId
@@ -143,6 +159,7 @@ export function hydrateGameState(game: GameState | undefined, players: Player[])
 
   return {
     ...baseGame,
+    day,
     playerOrder,
     positions,
     completedTurns,
@@ -158,6 +175,8 @@ export function hydrateGameState(game: GameState | undefined, players: Player[])
     playerLoanOffers: baseGame.playerLoanOffers ?? {},
     playerAdvantages: baseGame.playerAdvantages ?? {},
     playerRestrictions: baseGame.playerRestrictions ?? {},
+    stockMarket: hydrateStockMarket(baseGame.stockMarket, day, now),
+    playerStocks,
     turnPlayerId,
   };
 }
@@ -223,6 +242,7 @@ export function calculatePlayerFortune(game: GameState, playerId: string) {
   return (
     (finance?.balance ?? 0) +
     calculatePlayerNetWorth(game, playerId) +
+    calculatePortfolioValue(game.playerStocks[playerId], game.stockMarket) +
     calculateReceivableTotal(finance) -
     calculateActiveDebtTotal(finance)
   );
@@ -271,9 +291,7 @@ export function hasTitlePropertyActionInCurrentVisit(
   title: TitleOwnership | undefined,
   playerId: string,
 ) {
-  return (
-    title?.lastPropertyActionVisitStartedAt === getPlayerSpaceVisitStartedAt(game, playerId)
-  );
+  return title?.lastPropertyActionVisitStartedAt === getPlayerSpaceVisitStartedAt(game, playerId);
 }
 
 export function calculateRestrictionFineAmount(game: GameState, playerId: string) {

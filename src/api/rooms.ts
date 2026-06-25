@@ -28,11 +28,14 @@ import type {
   PlayerDebt,
   PlayerFinance,
   PlayerRestriction,
+  PlayerStockHolding,
   PlayerTransaction,
   Room,
   RoomSummary,
+  StockKey,
 } from '@/types';
 import {
+  advanceStockMarketDay,
   advanceTurn,
   BANK_LOAN_INTEREST_RATE,
   calculateBankSettlementAmount,
@@ -59,6 +62,7 @@ import {
   moveBoardPosition,
   normalizeComparableText,
   normalizePlayerOrder,
+  STOCK_DEFINITIONS_BY_KEY,
 } from '@/utils';
 
 const roomsRef = ref(database, 'rooms');
@@ -2698,6 +2702,181 @@ export async function closeTitleAuction(roomId: string, sellerId: string, auctio
   return update(ref(database, `rooms/${roomId}`), { updatedAt: Date.now() });
 }
 
+export async function buyPlayerStock(
+  roomId: string,
+  playerId: string,
+  input: { stockKey: StockKey; quantity: number },
+) {
+  const room = await getRoom(roomId);
+
+  if (!room) {
+    throw new Error('Sala nao encontrada.');
+  }
+
+  const stockDefinition = STOCK_DEFINITIONS_BY_KEY[input.stockKey];
+  const quantity = Math.floor(input.quantity);
+
+  if (!stockDefinition || quantity <= 0) {
+    throw new Error('Informe uma acao e quantidade validas.');
+  }
+
+  const players = toPlayersArray(room.players);
+  const now = Date.now();
+
+  await runTransaction(ref(database, `rooms/${roomId}/game`), (currentGame?: GameState) => {
+    const game = hydrateGameState(currentGame, players);
+    const finance = game.playerFinances[playerId];
+    const asset = game.stockMarket[input.stockKey];
+
+    if (game.status !== 'playing') {
+      throw new Error('A partida precisa estar em andamento para investir.');
+    }
+
+    if (!finance || !asset) {
+      throw new Error('Carteira indisponivel para este jogador.');
+    }
+
+    const totalAmount = asset.price * quantity;
+
+    if (finance.balance < totalAmount) {
+      throw new Error('Saldo insuficiente para comprar essas acoes.');
+    }
+
+    const transactionId = crypto.randomUUID();
+    const currentPortfolio = game.playerStocks[playerId] ?? { holdings: {} };
+    const currentHolding = currentPortfolio.holdings[input.stockKey];
+    const nextQuantity = (currentHolding?.quantity ?? 0) + quantity;
+    const nextAveragePrice = Math.round(
+      ((currentHolding?.averagePrice ?? 0) * (currentHolding?.quantity ?? 0) + totalAmount) /
+        nextQuantity,
+    );
+    const nextHolding: PlayerStockHolding = {
+      stockKey: input.stockKey,
+      quantity: nextQuantity,
+      averagePrice: nextAveragePrice,
+    };
+
+    return toFirebaseValue({
+      ...game,
+      playerFinances: {
+        ...game.playerFinances,
+        [playerId]: {
+          ...finance,
+          balance: finance.balance - totalAmount,
+          transactions: {
+            ...finance.transactions,
+            [transactionId]: {
+              id: transactionId,
+              kind: 'stock-buy',
+              amount: -totalAmount,
+              round: game.round,
+              description: `Compra de ${quantity} ${stockDefinition.ticker}`,
+              createdAt: now,
+            },
+          },
+          updatedAt: now,
+        },
+      },
+      playerStocks: {
+        ...game.playerStocks,
+        [playerId]: {
+          holdings: {
+            ...currentPortfolio.holdings,
+            [input.stockKey]: nextHolding,
+          },
+        },
+      },
+      updatedAt: now,
+    });
+  });
+
+  return update(ref(database, `rooms/${roomId}`), { updatedAt: now });
+}
+
+export async function sellPlayerStock(
+  roomId: string,
+  playerId: string,
+  input: { stockKey: StockKey; quantity: number },
+) {
+  const room = await getRoom(roomId);
+
+  if (!room) {
+    throw new Error('Sala nao encontrada.');
+  }
+
+  const stockDefinition = STOCK_DEFINITIONS_BY_KEY[input.stockKey];
+  const quantity = Math.floor(input.quantity);
+
+  if (!stockDefinition || quantity <= 0) {
+    throw new Error('Informe uma acao e quantidade validas.');
+  }
+
+  const players = toPlayersArray(room.players);
+  const now = Date.now();
+
+  await runTransaction(ref(database, `rooms/${roomId}/game`), (currentGame?: GameState) => {
+    const game = hydrateGameState(currentGame, players);
+    const finance = game.playerFinances[playerId];
+    const asset = game.stockMarket[input.stockKey];
+    const currentPortfolio = game.playerStocks[playerId] ?? { holdings: {} };
+    const currentHolding = currentPortfolio.holdings[input.stockKey];
+
+    if (game.status !== 'playing') {
+      throw new Error('A partida precisa estar em andamento para vender.');
+    }
+
+    if (!finance || !asset || !currentHolding || currentHolding.quantity < quantity) {
+      throw new Error('Quantidade insuficiente na carteira.');
+    }
+
+    const totalAmount = asset.price * quantity;
+    const transactionId = crypto.randomUUID();
+    const nextQuantity = currentHolding.quantity - quantity;
+    const nextHoldings = {
+      ...currentPortfolio.holdings,
+      [input.stockKey]:
+        nextQuantity > 0
+          ? {
+              ...currentHolding,
+              quantity: nextQuantity,
+            }
+          : undefined,
+    };
+
+    return toFirebaseValue({
+      ...game,
+      playerFinances: {
+        ...game.playerFinances,
+        [playerId]: {
+          ...finance,
+          balance: finance.balance + totalAmount,
+          transactions: {
+            ...finance.transactions,
+            [transactionId]: {
+              id: transactionId,
+              kind: 'stock-sell',
+              amount: totalAmount,
+              round: game.round,
+              description: `Venda de ${quantity} ${stockDefinition.ticker}`,
+              createdAt: now,
+            },
+          },
+          updatedAt: now,
+        },
+      },
+      playerStocks: {
+        ...game.playerStocks,
+        [playerId]: {
+          holdings: nextHoldings,
+        },
+      },
+      updatedAt: now,
+    });
+  });
+
+  return update(ref(database, `rooms/${roomId}`), { updatedAt: now });
+}
+
 export async function rollPlayerDice(
   roomId: string,
   playerId: string,
@@ -2844,13 +3023,17 @@ export async function finishPlayerTurn(roomId: string, playerId: string) {
     }
 
     const { nextCompletedTurns, nextPlayerId, nextRound } = advanceTurn(game, roll);
+    const nextDay = (game.day ?? 1) + 1;
+    const stockMarket = advanceStockMarketDay(game.stockMarket, nextDay, now);
 
     return toFirebaseValue({
       ...game,
       round: nextRound,
+      day: nextDay,
       turnPlayerId: nextPlayerId,
       turnStartedAt: now,
       completedTurns: nextCompletedTurns,
+      stockMarket,
       updatedAt: now,
     });
   });

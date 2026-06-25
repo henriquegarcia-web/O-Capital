@@ -1,8 +1,8 @@
-import { LineChartOutlined, WalletOutlined } from '@ant-design/icons';
+import { AreaChartOutlined, LineChartOutlined, WalletOutlined } from '@ant-design/icons';
 import { Card, Col, Row, Space, Typography } from 'antd';
 
 import type { GameState, Player } from '@/types';
-import { calculatePlayerNetWorth, formatMoney } from '@/utils';
+import { calculatePlayerNetWorth, calculatePortfolioValue, formatMoney } from '@/utils';
 
 type PlayerFinanceCardProps = {
   game: GameState;
@@ -12,6 +12,7 @@ type PlayerFinanceCardProps = {
 const metrics = [
   { key: 'balance', label: 'Saldo atual', icon: WalletOutlined },
   { key: 'netWorth', label: 'Valor de patrimonio', icon: LineChartOutlined },
+  { key: 'stocks', label: 'Carteira de acoes', icon: AreaChartOutlined },
 ] as const;
 
 export function PlayerFinanceCard({ currentPlayer, game }: PlayerFinanceCardProps) {
@@ -19,6 +20,9 @@ export function PlayerFinanceCard({ currentPlayer, game }: PlayerFinanceCardProp
   const values = {
     balance: formatMoney(finance?.balance ?? 0),
     netWorth: formatMoney(calculatePlayerNetWorth(game, currentPlayer.id)),
+    stocks: formatMoney(
+      calculatePortfolioValue(game.playerStocks[currentPlayer.id], game.stockMarket),
+    ),
   };
 
   return (
@@ -33,7 +37,7 @@ export function PlayerFinanceCard({ currentPlayer, game }: PlayerFinanceCardProp
             const Icon = metric.icon;
 
             return (
-              <Col key={metric.key} xs={12}>
+              <Col key={metric.key} xs={12} sm={8}>
                 <div className="player-finance-card__metric">
                   <Icon />
                   <Typography.Text className="player-finance-card__metric-label">
