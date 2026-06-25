@@ -262,6 +262,20 @@ export function isPlayerActionBlocked(game: GameState, playerId: string) {
   return Boolean(getActivePlayerRestriction(game, playerId));
 }
 
+export function getPlayerSpaceVisitStartedAt(game: GameState, playerId: string) {
+  return game.playerLastRolls?.[playerId]?.createdAt ?? null;
+}
+
+export function hasTitlePropertyActionInCurrentVisit(
+  game: GameState,
+  title: TitleOwnership | undefined,
+  playerId: string,
+) {
+  return (
+    title?.lastPropertyActionVisitStartedAt === getPlayerSpaceVisitStartedAt(game, playerId)
+  );
+}
+
 export function calculateRestrictionFineAmount(game: GameState, playerId: string) {
   return Math.round(
     (calculatePlayerNetWorth(game, playerId) + (game.playerFinances[playerId]?.balance ?? 0)) *

@@ -54,6 +54,7 @@ import {
   getNextRealEstateBlueprintForSlot,
   getTitlePropertySlots,
   hasCurrentSpaceAction,
+  hasTitlePropertyActionInCurrentVisit,
   isPlayerActionBlocked,
 } from '@/utils';
 
@@ -125,7 +126,11 @@ export function CurrentBoardSpaceCard({
   const hasAvailableBuildSlot = propertySlotItems.some(
     (property) => !property && getAvailableBlueprintsForPropertySlot(property).length > 0,
   );
-  const propertyActionTurnStartedAt = title?.lastPropertyActionTurnStartedAt;
+  const hasPropertyActionInCurrentVisit = hasTitlePropertyActionInCurrentVisit(
+    game,
+    title,
+    currentPlayer.id,
+  );
   const isCurrentPlayerTurn = game.status === 'playing' && game.turnPlayerId === currentPlayer.id;
   const isAtBankSpace = boardSpace.kind === 'bank';
   const isAtTaxSpace = boardSpace.kind === 'tax';
@@ -206,8 +211,8 @@ export function CurrentBoardSpaceCard({
         ? 'Construcao disponivel apenas a partir da proxima rodada.'
         : !isCurrentPlayerTurn
           ? 'Acoes de propriedade disponiveis apenas na sua vez.'
-          : propertyActionTurnStartedAt === game.turnStartedAt
-            ? 'Ja houve construcao, destruicao ou evolucao neste titulo nesta vez.'
+          : hasPropertyActionInCurrentVisit
+            ? 'Ja houve uma acao de propriedade nesta casa. Role os dados para liberar a proxima.'
             : !hasAvailableBuildSlot
               ? 'Sem terrenos vazios disponiveis para construcao.'
               : null;
@@ -799,7 +804,7 @@ export function CurrentBoardSpaceCard({
                   isOwner &&
                   title.acquiredAtRound !== game.round &&
                   isCurrentPlayerTurn &&
-                  propertyActionTurnStartedAt !== game.turnStartedAt;
+                  !hasPropertyActionInCurrentVisit;
                 const canUpgrade = Boolean(
                   property &&
                   blueprint?.category === 'real-estate' &&

@@ -139,6 +139,7 @@ export type TitleOwnership = {
   lastPropertyPurchaseRound?: number;
   lastPropertyActionRound?: number;
   lastPropertyActionTurnStartedAt?: number | null;
+  lastPropertyActionVisitStartedAt?: number | null;
 };
 
 export type TaxPendingStatus = 'pending' | 'paid';

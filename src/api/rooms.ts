@@ -51,8 +51,10 @@ import {
   getActivePlayers,
   getAvailableBlueprintsForPropertySlot,
   getInitialGameState,
+  getPlayerSpaceVisitStartedAt,
   isPlayerActionBlocked,
   getTitlePropertySlots,
+  hasTitlePropertyActionInCurrentVisit,
   hydrateGameState,
   moveBoardPosition,
   normalizeComparableText,
@@ -1690,6 +1692,7 @@ export async function buyTitle(roomId: string, playerId: string, boardIndex: num
     const titleKey = String(boardIndex);
     const currentTitle = game.titles[titleKey];
     const playerFinance = game.playerFinances[playerId];
+    const propertyActionVisitStartedAt = getPlayerSpaceVisitStartedAt(game, playerId);
 
     requirePlayerCanAct(game, playerId, 'Jogador travado nao pode comprar titulos.');
 
@@ -1711,6 +1714,10 @@ export async function buyTitle(roomId: string, playerId: string, boardIndex: num
 
     if (game.turnPlayerId !== playerId || game.positions[playerId] !== boardIndex) {
       throw new Error('Compra disponivel apenas na sua vez e na casa atual.');
+    }
+
+    if (hasTitlePropertyActionInCurrentVisit(game, currentTitle, playerId)) {
+      throw new Error('Este titulo ja teve uma acao de propriedade nesta visita.');
     }
 
     if (playerFinance.balance < landValue) {
@@ -1741,6 +1748,10 @@ export async function buyTitle(roomId: string, playerId: string, boardIndex: num
           ownerId: playerId,
           acquiredAtRound: game.round,
           properties: [],
+          lastPropertyPurchaseRound: game.round,
+          lastPropertyActionRound: game.round,
+          lastPropertyActionTurnStartedAt: game.turnStartedAt,
+          lastPropertyActionVisitStartedAt: propertyActionVisitStartedAt,
         },
       },
       playerFinances: {
@@ -1787,6 +1798,7 @@ export async function buildTitleProperty(
     const currentSlotBlueprint = currentSlotProperty
       ? getBlueprint(currentSlotProperty.blueprintKey)
       : undefined;
+    const propertyActionVisitStartedAt = getPlayerSpaceVisitStartedAt(game, playerId);
 
     requirePlayerCanAct(game, playerId, 'Jogador travado nao pode construir propriedades.');
 
@@ -1814,8 +1826,8 @@ export async function buildTitleProperty(
       throw new Error('Acoes de propriedade so podem ser feitas na sua vez e na casa atual.');
     }
 
-    if (title.lastPropertyActionTurnStartedAt === game.turnStartedAt) {
-      throw new Error('Este titulo ja teve uma acao de propriedade nesta vez.');
+    if (hasTitlePropertyActionInCurrentVisit(game, title, playerId)) {
+      throw new Error('Este titulo ja teve uma acao de propriedade nesta visita.');
     }
 
     if (currentSlotBlueprint?.category === 'business') {
@@ -1880,6 +1892,7 @@ export async function buildTitleProperty(
           lastPropertyPurchaseRound: game.round,
           lastPropertyActionRound: game.round,
           lastPropertyActionTurnStartedAt: game.turnStartedAt,
+          lastPropertyActionVisitStartedAt: propertyActionVisitStartedAt,
         },
       },
       playerFinances: {
@@ -1919,6 +1932,7 @@ export async function destroyTitleProperty(
     const properties = title?.properties ?? [];
     const property = properties.find((item) => item.id === propertyId);
     const blueprint = property ? getBlueprint(property.blueprintKey) : undefined;
+    const propertyActionVisitStartedAt = getPlayerSpaceVisitStartedAt(game, playerId);
 
     requirePlayerCanAct(game, playerId, 'Jogador travado nao pode destruir propriedades.');
 
@@ -1942,8 +1956,8 @@ export async function destroyTitleProperty(
       throw new Error('Acoes de propriedade so podem ser feitas na sua vez e na casa atual.');
     }
 
-    if (title.lastPropertyActionTurnStartedAt === game.turnStartedAt) {
-      throw new Error('Este titulo ja teve uma acao de propriedade nesta vez.');
+    if (hasTitlePropertyActionInCurrentVisit(game, title, playerId)) {
+      throw new Error('Este titulo ja teve uma acao de propriedade nesta visita.');
     }
 
     if (!playerFinance) {
@@ -1971,6 +1985,7 @@ export async function destroyTitleProperty(
           properties: properties.filter((item) => item.id !== propertyId),
           lastPropertyActionRound: game.round,
           lastPropertyActionTurnStartedAt: game.turnStartedAt,
+          lastPropertyActionVisitStartedAt: propertyActionVisitStartedAt,
         },
       },
       playerFinances: {
