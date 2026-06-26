@@ -252,7 +252,7 @@ export const GAME_BALANCE = {
   ],
   restrictions: {
     requiredFailedAttemptsBeforeFine: 3,
-    releaseFineNetWorthRate: 0.05,
+    releaseFineNetWorthRate: 0.15,
   },
   advantages: {
     usageLimitPerRound: 1,

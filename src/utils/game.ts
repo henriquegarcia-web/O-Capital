@@ -1,4 +1,4 @@
-import {
+﻿import {
   BOARD_SIZE,
   BOARD_SPACES_BY_INDEX,
   GAME_BALANCE,
@@ -17,6 +17,7 @@ import type {
   PropertyBlueprint,
   RoundPending,
   TaxPending,
+  TitleAuction,
   TitleOwnership,
 } from '@/types';
 import {
@@ -39,6 +40,21 @@ export const BANK_SETTLEMENT_DISCOUNT_RATE = GAME_BALANCE.bank.settlementDiscoun
 
 export function getActivePlayers(players: Player[]) {
   return players.filter((player) => player.status !== 'eliminated');
+}
+
+export function calculateTitleAuctionDurationDays(players: Player[]) {
+  return Math.max(1, getActivePlayers(players).length * 3);
+}
+
+export function getTitleAuctionProgress(auction: TitleAuction, currentDay: number) {
+  const totalDays = Math.max(1, auction.durationDays);
+  const elapsedDays = Math.max(0, currentDay - auction.openedAtDay);
+
+  return {
+    currentDay: Math.min(totalDays, elapsedDays + 1),
+    totalDays,
+    isExpired: currentDay >= auction.expiresAtDay,
+  };
 }
 
 export function normalizePlayerOrder(players: Player[], playerOrder: string[] = []) {
@@ -157,6 +173,23 @@ export function hydrateGameState(game: GameState | undefined, players: Player[])
     baseGame.turnPlayerId && playerOrder.includes(baseGame.turnPlayerId)
       ? baseGame.turnPlayerId
       : (playerOrder[0] ?? null);
+  const defaultAuctionDurationDays = calculateTitleAuctionDurationDays(players);
+  const titleAuctions = Object.fromEntries(
+    Object.entries(baseGame.titleAuctions ?? {}).map(([auctionId, auction]) => {
+      const openedAtDay = auction.openedAtDay ?? day;
+      const durationDays = auction.durationDays ?? defaultAuctionDurationDays;
+
+      return [
+        auctionId,
+        {
+          ...auction,
+          openedAtDay,
+          durationDays,
+          expiresAtDay: auction.expiresAtDay ?? openedAtDay + durationDays,
+        },
+      ];
+    }),
+  );
 
   return {
     ...baseGame,
@@ -172,7 +205,7 @@ export function hydrateGameState(game: GameState | undefined, players: Player[])
     roundPendings: baseGame.roundPendings ?? {},
     spaceActions: baseGame.spaceActions ?? {},
     titleSaleOffers: baseGame.titleSaleOffers ?? {},
-    titleAuctions: baseGame.titleAuctions ?? {},
+    titleAuctions,
     playerLoanOffers: baseGame.playerLoanOffers ?? {},
     playerAdvantages: baseGame.playerAdvantages ?? {},
     playerMissions: baseGame.playerMissions ?? {},

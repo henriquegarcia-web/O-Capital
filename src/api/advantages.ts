@@ -13,6 +13,7 @@ import type {
 } from '@/types';
 import {
   calculateRestrictionFineAmount,
+  calculateTitleAuctionDurationDays,
   calculateTitleBankSaleValue,
   createSpaceActionKey,
   getActivePlayerRestriction,
@@ -360,6 +361,8 @@ export async function useForceAuction(
     }
 
     const auctionId = crypto.randomUUID();
+    const durationDays = calculateTitleAuctionDurationDays(players);
+    const openedAtDay = game.day ?? 0;
 
     return toFirebaseValue({
       ...game,
@@ -373,6 +376,9 @@ export async function useForceAuction(
           initialBid: calculateTitleBankSaleValue(game, title),
           status: 'open',
           bids: {},
+          openedAtDay,
+          durationDays,
+          expiresAtDay: openedAtDay + durationDays,
           createdAt: now,
         },
       },

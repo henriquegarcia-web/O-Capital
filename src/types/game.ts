@@ -243,8 +243,12 @@ export type TitleAuction = {
   highestBidId?: string;
   status: TitleAuctionStatus;
   bids: Record<string, TitleAuctionBid>;
+  openedAtDay: number;
+  durationDays: number;
+  expiresAtDay: number;
   createdAt: number;
   closedAt?: number;
+  closedAtDay?: number;
   cancelledAt?: number;
 };
 

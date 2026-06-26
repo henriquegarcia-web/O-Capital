@@ -3,11 +3,10 @@ import { APP_ICONS } from '@/constants';
 
 import type { GameState, Player } from '@/types';
 import {
-  MISSIONS_BY_CATEGORY,
+  calculateBankScore,
   calculatePlayerNetWorth,
   calculatePortfolioValue,
   formatMoney,
-  isMissionCompleted,
 } from '@/utils';
 
 type PlayerFinanceCardProps = {
@@ -21,12 +20,17 @@ const metrics = [
   { key: 'stocks', label: 'Carteira de acoes', icon: APP_ICONS.areaChart },
 ] as const;
 
+function getBankScoreTone(score: number) {
+  if (score <= 10) return 'danger';
+  if (score <= 50) return 'warning';
+
+  return 'success';
+}
+
 export function PlayerFinanceCard({ currentPlayer, game }: PlayerFinanceCardProps) {
   const finance = game.playerFinances[currentPlayer.id];
-  const missions = MISSIONS_BY_CATEGORY.flatMap((category) => category.missions);
-  const completedMissions = missions.filter((mission) =>
-    isMissionCompleted(game, currentPlayer.id, mission),
-  ).length;
+  const bankScore = calculateBankScore(game, currentPlayer.id);
+  const bankScoreTone = getBankScoreTone(bankScore);
   const values = {
     balance: formatMoney(finance?.balance ?? 0),
     netWorth: formatMoney(calculatePlayerNetWorth(game, currentPlayer.id)),
@@ -67,12 +71,20 @@ export function PlayerFinanceCard({ currentPlayer, game }: PlayerFinanceCardProp
           })}
           <Col xs={12} sm={8}>
             <div className="player-finance-card__metric">
-              <APP_ICONS.lineChart />
+              <APP_ICONS.bank />
               <Typography.Text className="player-finance-card__metric-label">
-                Missoes concluidas
+                Pontuacao do banco
               </Typography.Text>
-              <Typography.Text className="player-finance-card__metric-value">
-                {completedMissions} de {missions.length}
+              <Typography.Text
+                className={
+                  bankScoreTone === 'success'
+                    ? 'player-finance-card__metric-value bank-score-value bank-score-value--success'
+                    : bankScoreTone === 'warning'
+                      ? 'player-finance-card__metric-value bank-score-value bank-score-value--warning'
+                      : 'player-finance-card__metric-value bank-score-value bank-score-value--danger'
+                }
+              >
+                {bankScore}
               </Typography.Text>
             </div>
           </Col>

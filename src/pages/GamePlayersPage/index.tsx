@@ -3,7 +3,13 @@ import { Navigate, useParams } from 'react-router-dom';
 import { App, Button, Card, Flex, Modal, Result, Skeleton, Space, Typography } from 'antd';
 
 import { confirmRoundPending, useRentInsurance as applyRentInsuranceAdvantage } from '@/api';
-import { APP_HISTORY_MENU, APP_MENU_ITEMS, APP_RANKING_MENU, type AppMenuKey } from '@/constants';
+import {
+  APP_HISTORY_MENU,
+  APP_MENU_ITEMS,
+  APP_RANKING_MENU,
+  GAME_BALANCE,
+  type AppMenuKey,
+} from '@/constants';
 import {
   AppBottomNavigation,
   AdvantagesMenuPanel,
@@ -129,6 +135,21 @@ export function GamePlayersPage() {
           taxes: 0,
           netAmount: 0,
         };
+  const activeTaxReduction = hydratedGame.playerAdvantages[activePlayer.id]?.taxReduction;
+  const taxReductionUsageIndex =
+    statementBreakdown.taxReductionAdvantageId &&
+    activeTaxReduction?.id === statementBreakdown.taxReductionAdvantageId
+      ? Math.min(
+          GAME_BALANCE.advantages.taxReductionPasses,
+          Math.max(
+            1,
+            GAME_BALANCE.advantages.taxReductionPasses - activeTaxReduction.remainingPasses + 1,
+          ),
+        )
+      : null;
+  const taxReductionLabel = taxReductionUsageIndex
+    ? `Reducao de Impostos (${taxReductionUsageIndex}/${GAME_BALANCE.advantages.taxReductionPasses})`
+    : 'Reducao de Impostos';
   const hasClaimableMission = MISSIONS_BY_CATEGORY.flatMap((category) => category.missions).some(
     (mission) =>
       isMissionCompleted(hydratedGame, activePlayer.id, mission) &&
@@ -340,7 +361,7 @@ export function GamePlayersPage() {
                     </Typography.Text>
                   </Flex>
                   <Flex justify="space-between" gap={12}>
-                    <Typography.Text type="secondary">Reducao de Impostos</Typography.Text>
+                    <Typography.Text type="secondary">{taxReductionLabel}</Typography.Text>
                     <Typography.Text strong className="bank-money--success">
                       - {formatMoney(statementBreakdown.taxDiscount)}
                     </Typography.Text>

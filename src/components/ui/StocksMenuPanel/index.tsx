@@ -82,7 +82,7 @@ function StockSparkline({ asset }: { asset: StockMarketAsset | undefined }) {
 
   const width = 280;
   const height = 92;
-  const padding = 8;
+  const padding = 0;
   const prices = history.map((point) => point.price);
   const min = Math.min(...prices);
   const max = Math.max(...prices);
@@ -100,7 +100,12 @@ function StockSparkline({ asset }: { asset: StockMarketAsset | undefined }) {
 
   return (
     <div className="stock-chart-frame">
-      <svg className="stock-chart" viewBox={`0 0 ${width} ${height}`} role="img">
+      <svg
+        className="stock-chart"
+        viewBox={`0 0 ${width} ${height}`}
+        preserveAspectRatio="none"
+        role="img"
+      >
         <polygon
           points={areaPoints}
           className={change >= 0 ? 'stock-chart__area--up' : 'stock-chart__area--down'}
@@ -255,12 +260,12 @@ export function StocksMenuPanel({ currentPlayer, game, room }: StocksMenuPanelPr
               <Flex align="flex-start" justify="space-between" gap={12} wrap>
                 <Space size={10} align="start" className="stock-card__identity">
                   <APP_ICONS.areaChart className="stock-card__icon" />
-                  <Space orientation="vertical" size={2}>
+                  <Flex vertical gap={0}>
                     <Typography.Title level={5} className="stock-card__title">
                       {stock.name}
                     </Typography.Title>
-                    <Typography.Text type="secondary">{stock.ticker}</Typography.Text>
-                  </Space>
+                    <Typography.Text type="secondary" style={{ fontSize: 12}}>{stock.ticker}</Typography.Text>
+                  </Flex>
                 </Space>
                 <Space size={6} wrap>
                   <Tag color={STOCK_RISK_COLORS[stock.risk]}>

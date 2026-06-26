@@ -81,6 +81,8 @@ export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPa
   const [loanForm] = Form.useForm<{ amount: number }>();
   const [playerLoanForm] = Form.useForm<{ lenderId: string; amount: number }>();
   const [paymentForm] = Form.useForm<{ amount: number }>();
+  const [bankLoanOpen, setBankLoanOpen] = useState(false);
+  const [playerLoanOpen, setPlayerLoanOpen] = useState(false);
   const [paymentState, setPaymentState] = useState<DebtPaymentState | null>(null);
   const [loadingAction, setLoadingAction] = useState(false);
   const finance = game.playerFinances[currentPlayer.id];
@@ -167,6 +169,8 @@ export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPa
       loanForm.resetFields();
       playerLoanForm.resetFields();
       paymentForm.resetFields();
+      setBankLoanOpen(false);
+      setPlayerLoanOpen(false);
       setPaymentState(null);
     } catch (error) {
       message.error(error instanceof Error ? error.message : 'Nao foi possivel concluir a acao.');
@@ -722,181 +726,49 @@ export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPa
         </Space>
       </Card>
 
-      <Collapse
-        className="bank-app-card bank-loan-collapse"
-        items={[
-          {
-            key: 'bank-loan',
-            label: 'Emprestimo do Banco',
-            children: (
-              <Space orientation="vertical" size={14} style={{ width: '100%' }}>
-                <Flex justify="space-between" gap={12}>
-                  <Typography.Text type="secondary">Limite total</Typography.Text>
-                  <Typography.Text strong>{formatMoney(creditLimit)}</Typography.Text>
-                </Flex>
-                <Flex justify="space-between" gap={12}>
-                  <Typography.Text type="secondary">Limite disponivel</Typography.Text>
-                  <Typography.Text strong>{formatMoney(availableCredit)}</Typography.Text>
-                </Flex>
-                <Flex justify="space-between" gap={12}>
-                  <Typography.Text type="secondary">Dividas ativas</Typography.Text>
-                  <Typography.Text strong>{formatMoney(activeDebtTotal)}</Typography.Text>
-                </Flex>
-                <Flex justify="space-between" gap={12}>
-                  <Typography.Text type="secondary">Taxa de juros</Typography.Text>
-                  <Typography.Text strong>{interestPercent}%</Typography.Text>
-                </Flex>
-                <Flex justify="space-between" gap={12}>
-                  <Typography.Text type="secondary">Total a pagar</Typography.Text>
-                  <Typography.Text strong>{formatMoney(loanDebtTotal)}</Typography.Text>
-                </Flex>
-                {isProjectedPreBankruptcy ? (
-                  <Alert
-                    type="warning"
-                    showIcon
-                    title={`Este emprestimo levara o jogador a pre-falencia: score ${projectedScore}.`}
-                  />
-                ) : null}
-                {isProjectedBankruptcy ? (
-                  <Alert
-                    type="error"
-                    showIcon
-                    title="Emprestimo bloqueado: este valor levaria o jogador a falencia."
-                  />
-                ) : null}
-                <Form
-                  form={loanForm}
-                  layout="vertical"
-                  onFinish={(values) =>
-                    confirmAction(
-                      'Confirmar emprestimo',
-                      `Contratar emprestimo de ${formatMoney(values.amount)} com total a pagar de ${formatMoney(
-                        calculateLoanDebtAmount(values.amount),
-                      )}?`,
-                      () => requestBankLoan(room.id, currentPlayer.id, values.amount),
-                      'Emprestimo contratado.',
-                    )
-                  }
-                >
-                  <Flex align="flex-end" gap={8} wrap>
-                    <Form.Item
-                      name="amount"
-                      label="Valor desejado"
-                      rules={[{ required: true, message: '' }]}
-                      style={{ flex: '1 1 180px', marginBottom: 0 }}
-                    >
-                      <Space.Compact style={{ width: '100%' }}>
-                        <Button disabled className="money-input-prefix">
-                          R$
-                        </Button>
-                        <InputNumber min={1} precision={0} style={{ width: '100%' }} />
-                      </Space.Compact>
-                    </Form.Item>
-                    <Button
-                      type="primary"
-                      htmlType="submit"
-                      icon={actionBlocked ? <APP_ICONS.lock /> : undefined}
-                      disabled={actionBlocked || isProjectedBankruptcy}
-                      loading={loadingAction}
-                      className="bank-loan-submit"
-                    >
-                      Solicitar
-                    </Button>
-                  </Flex>
-                </Form>
-              </Space>
-            ),
-          },
-        ]}
-      />
+      {/* <Card className="bank-app-card bank-loan-actions-card"> */}
+      <Flex gap={8} className="bank-two-actions">
+        <Button
+          type="primary"
+          block
+          icon={actionBlocked && <APP_ICONS.lock />}
+          disabled={actionBlocked}
+          onClick={() => setBankLoanOpen(true)}
+        >
+          Emprestimo Banco
+        </Button>
+        <Button
+          type="primary"
+          block
+          icon={actionBlocked && <APP_ICONS.lock />}
+          disabled={actionBlocked}
+          onClick={() => setPlayerLoanOpen(true)}
+        >
+          Emprestimo Jogador
+        </Button>
+      </Flex>
+      {/* </Card> */}
 
       <Collapse
-        className="bank-app-card bank-loan-collapse"
+        className="bank-app-card bank-section-collapse"
         items={[
           {
-            key: 'player-loan',
-            label: 'Emprestimo entre jogadores',
-            children: (
-              <Space orientation="vertical" size={14} style={{ width: '100%' }}>
-                {isPlayerLoanPreBankruptcy ? (
-                  <Alert
-                    type="warning"
-                    showIcon
-                    title={`Este emprestimo levara o jogador a pre-falencia: score ${playerLoanProjectedScore}.`}
-                  />
-                ) : null}
-                {isPlayerLoanBankruptcy ? (
-                  <Alert
-                    type="error"
-                    showIcon
-                    title="Emprestimo bloqueado: este valor levaria o jogador a falencia."
-                  />
-                ) : null}
-                <Form
-                  form={playerLoanForm}
-                  layout="vertical"
-                  onFinish={(values) =>
-                    confirmAction(
-                      'Solicitar emprestimo',
-                      `Solicitar ${formatMoney(values.amount)} a ${getPlayerName(players, values.lenderId)}?`,
-                      () =>
-                        createPlayerLoanOffer(
-                          room.id,
-                          currentPlayer.id,
-                          values.lenderId,
-                          values.amount,
-                        ),
-                      'Solicitacao enviada.',
-                    )
-                  }
-                >
-                  <Flex align="flex-end" gap={8} wrap>
-                    <Form.Item
-                      name="lenderId"
-                      label="Jogador"
-                      rules={[{ required: true, message: '' }]}
-                      style={{ flex: '1 1 180px', marginBottom: 0 }}
-                    >
-                      <Select placeholder="Selecione" options={loanLenderOptions} />
-                    </Form.Item>
-                    <Form.Item
-                      name="amount"
-                      label="Valor"
-                      rules={[{ required: true, message: '' }]}
-                      style={{ flex: '1 1 150px', marginBottom: 0 }}
-                    >
-                      <Space.Compact style={{ width: '100%' }}>
-                        <Button disabled className="money-input-prefix">
-                          R$
-                        </Button>
-                        <InputNumber min={1} precision={0} style={{ width: '100%' }} />
-                      </Space.Compact>
-                    </Form.Item>
-                    <Button
-                      type="primary"
-                      htmlType="submit"
-                      icon={actionBlocked ? <APP_ICONS.lock /> : <APP_ICONS.swap />}
-                      disabled={actionBlocked || isPlayerLoanBankruptcy}
-                      loading={loadingAction}
-                      className="bank-loan-submit"
-                    >
-                      Solicitar
-                    </Button>
-                  </Flex>
-                </Form>
-                {screens.md ? (
-                  <Table
-                    rowKey="id"
-                    size="small"
-                    pagination={false}
-                    columns={loanOfferColumns}
-                    dataSource={[...receivedLoanOffers, ...sentLoanOffers]}
-                    locale={{ emptyText: <Empty description="Nenhuma proposta de emprestimo" /> }}
-                  />
-                ) : (
-                  renderMobileLoanOfferCards()
-                )}
-              </Space>
+            key: 'loan-offers',
+            label: renderPendingAccordionLabel(
+              'Propostas de emprestimo',
+              receivedLoanOffers.length + sentLoanOffers.length,
+            ),
+            children: screens.md ? (
+              <Table
+                rowKey="id"
+                size="small"
+                pagination={false}
+                columns={loanOfferColumns}
+                dataSource={[...receivedLoanOffers, ...sentLoanOffers]}
+                locale={{ emptyText: <Empty description="Nenhuma proposta de emprestimo" /> }}
+              />
+            ) : (
+              renderMobileLoanOfferCards()
             ),
           },
         ]}
@@ -964,6 +836,136 @@ export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPa
           },
         ]}
       />
+
+      <Modal
+        title="Emprestimo do Banco"
+        open={bankLoanOpen}
+        okText="Solicitar"
+        cancelText="Cancelar"
+        confirmLoading={loadingAction}
+        okButtonProps={{ disabled: actionBlocked || isProjectedBankruptcy }}
+        onCancel={() => setBankLoanOpen(false)}
+        onOk={() => loanForm.submit()}
+      >
+        <Space orientation="vertical" size={14} style={{ width: '100%' }}>
+          <Flex justify="space-between" gap={12}>
+            <Typography.Text type="secondary">Limite total</Typography.Text>
+            <Typography.Text strong>{formatMoney(creditLimit)}</Typography.Text>
+          </Flex>
+          <Flex justify="space-between" gap={12}>
+            <Typography.Text type="secondary">Limite disponivel</Typography.Text>
+            <Typography.Text strong>{formatMoney(availableCredit)}</Typography.Text>
+          </Flex>
+          <Flex justify="space-between" gap={12}>
+            <Typography.Text type="secondary">Dividas ativas</Typography.Text>
+            <Typography.Text strong>{formatMoney(activeDebtTotal)}</Typography.Text>
+          </Flex>
+          <Flex justify="space-between" gap={12}>
+            <Typography.Text type="secondary">Taxa de juros</Typography.Text>
+            <Typography.Text strong>{interestPercent}%</Typography.Text>
+          </Flex>
+          <Flex justify="space-between" gap={12}>
+            <Typography.Text type="secondary">Total a pagar</Typography.Text>
+            <Typography.Text strong>{formatMoney(loanDebtTotal)}</Typography.Text>
+          </Flex>
+          {isProjectedPreBankruptcy ? (
+            <Alert
+              type="warning"
+              showIcon
+              title={`Este emprestimo levara o jogador a pre-falencia: score ${projectedScore}.`}
+            />
+          ) : null}
+          {isProjectedBankruptcy ? (
+            <Alert
+              type="error"
+              showIcon
+              title="Emprestimo bloqueado: este valor levaria o jogador a falencia."
+            />
+          ) : null}
+          <Form
+            form={loanForm}
+            layout="vertical"
+            onFinish={(values) =>
+              confirmAction(
+                'Confirmar emprestimo',
+                `Contratar emprestimo de ${formatMoney(values.amount)} com total a pagar de ${formatMoney(
+                  calculateLoanDebtAmount(values.amount),
+                )}?`,
+                () => requestBankLoan(room.id, currentPlayer.id, values.amount),
+                'Emprestimo contratado.',
+              )
+            }
+          >
+            <Form.Item
+              name="amount"
+              label="Valor desejado"
+              rules={[{ required: true, message: '' }]}
+            >
+              <Space.Compact style={{ width: '100%' }}>
+                <Button disabled className="money-input-prefix">
+                  R$
+                </Button>
+                <InputNumber min={1} precision={0} style={{ width: '100%' }} />
+              </Space.Compact>
+            </Form.Item>
+          </Form>
+        </Space>
+      </Modal>
+
+      <Modal
+        title="Emprestimo entre jogadores"
+        open={playerLoanOpen}
+        okText="Solicitar"
+        cancelText="Cancelar"
+        confirmLoading={loadingAction}
+        okButtonProps={{ disabled: actionBlocked || isPlayerLoanBankruptcy }}
+        onCancel={() => setPlayerLoanOpen(false)}
+        onOk={() => playerLoanForm.submit()}
+      >
+        <Space orientation="vertical" size={14} style={{ width: '100%' }}>
+          {isPlayerLoanPreBankruptcy ? (
+            <Alert
+              type="warning"
+              showIcon
+              title={`Este emprestimo levara o jogador a pre-falencia: score ${playerLoanProjectedScore}.`}
+            />
+          ) : null}
+          {isPlayerLoanBankruptcy ? (
+            <Alert
+              type="error"
+              showIcon
+              title="Emprestimo bloqueado: este valor levaria o jogador a falencia."
+            />
+          ) : null}
+          <Form
+            form={playerLoanForm}
+            layout="vertical"
+            onFinish={(values) =>
+              confirmAction(
+                'Solicitar emprestimo',
+                `Solicitar ${formatMoney(values.amount)} a ${getPlayerName(players, values.lenderId)}?`,
+                () =>
+                  createPlayerLoanOffer(room.id, currentPlayer.id, values.lenderId, values.amount),
+                'Solicitacao enviada.',
+              )
+            }
+          >
+            <Space orientation="vertical" size={12} style={{ width: '100%' }}>
+              <Form.Item name="lenderId" label="Jogador" rules={[{ required: true, message: '' }]}>
+                <Select placeholder="Selecione" options={loanLenderOptions} />
+              </Form.Item>
+              <Form.Item name="amount" label="Valor" rules={[{ required: true, message: '' }]}>
+                <Space.Compact style={{ width: '100%' }}>
+                  <Button disabled className="money-input-prefix">
+                    R$
+                  </Button>
+                  <InputNumber min={1} precision={0} style={{ width: '100%' }} />
+                </Space.Compact>
+              </Form.Item>
+            </Space>
+          </Form>
+        </Space>
+      </Modal>
 
       <Modal
         title="Pagar divida"

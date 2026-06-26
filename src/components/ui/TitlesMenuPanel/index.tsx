@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+﻿import { useMemo, useState } from 'react';
 import {
   App,
   Alert,
@@ -23,7 +23,6 @@ import type { ColumnsType } from 'antd/es/table';
 
 import {
   acceptTitleSaleOffer,
-  closeTitleAuction,
   createTitleAuction,
   createTitleSaleOffer,
   declineTitleSaleOffer,
@@ -41,6 +40,7 @@ import type {
 } from '@/types';
 import {
   calculatePlayerRoundIncome,
+  calculateTitleAuctionDurationDays,
   calculateTitleBankSaleValue,
   calculateTitleBuiltValue,
   calculateTitleMaintenance,
@@ -51,6 +51,7 @@ import {
   calculateTitleTax,
   formatMoney,
   getPlayerTitles,
+  getTitleAuctionProgress,
   getTitleLandValue,
   isPlayerActionBlocked,
 } from '@/utils';
@@ -107,6 +108,10 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
     (player) => player.status !== 'eliminated' && player.id !== currentPlayer.id,
   );
   const actionBlocked = isPlayerActionBlocked(game, currentPlayer.id);
+  const auctionDurationDays = calculateTitleAuctionDurationDays(players);
+  const currentTitleEstimatedValue = actionState
+    ? calculateTitleBankSaleValue(game, actionState.title)
+    : 0;
 
   const roundIncome = calculatePlayerRoundIncome(game, currentPlayer.id);
   const roundCosts = myTitles.reduce(
@@ -264,6 +269,16 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
     );
   }
 
+  function getOpenAuctionForTitle(boardIndex: number) {
+    return openAuctions.find((auction) => auction.boardIndex === boardIndex);
+  }
+
+  function renderAuctionProgress(auction: TitleAuction) {
+    const progress = getTitleAuctionProgress(auction, game.day);
+
+    return progress.currentDay + ' de ' + progress.totalDays + ' dias';
+  }
+
   function renderListAccordionLabel(label: string, count: number) {
     return (
       <Flex align="center" justify="space-between" gap={10}>
@@ -274,12 +289,15 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
   }
 
   function renderTitleActions(title: TitleOwnership) {
+    const hasOpenAuction = Boolean(getOpenAuctionForTitle(title.boardIndex));
+    const titleActionLocked = actionBlocked || hasOpenAuction;
+
     return (
       <Flex gap={8} wrap className="bank-title-actions">
         <Button
           size="small"
-          icon={actionBlocked ? <APP_ICONS.lock /> : <APP_ICONS.bank />}
-          disabled={actionBlocked}
+          icon={titleActionLocked ? <APP_ICONS.lock /> : <APP_ICONS.bank />}
+          disabled={titleActionLocked}
           onClick={() =>
             confirmAction(
               'Confirmar venda ao banco',
@@ -293,16 +311,16 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
         </Button>
         <Button
           size="small"
-          icon={actionBlocked ? <APP_ICONS.lock /> : <APP_ICONS.swap />}
-          disabled={actionBlocked}
+          icon={titleActionLocked ? <APP_ICONS.lock /> : <APP_ICONS.swap />}
+          disabled={titleActionLocked}
           onClick={() => setActionState({ type: 'direct-sale', title })}
         >
           Vender
         </Button>
         <Button
           size="small"
-          icon={actionBlocked ? <APP_ICONS.lock /> : <APP_ICONS.rise />}
-          disabled={actionBlocked}
+          icon={titleActionLocked ? <APP_ICONS.lock /> : <APP_ICONS.rise />}
+          disabled={titleActionLocked}
           onClick={() => setActionState({ type: 'auction', title })}
         >
           Leilao
@@ -409,6 +427,10 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
                   <Typography.Text>{getPlayerName(players, auction.sellerId)}</Typography.Text>
                 </Flex>
                 <Flex justify="space-between" gap={12}>
+                  <Typography.Text type="secondary">Prazo</Typography.Text>
+                  <Typography.Text>{renderAuctionProgress(auction)}</Typography.Text>
+                </Flex>
+                <Flex justify="space-between" gap={12}>
                   <Typography.Text type="secondary">Maior oferta</Typography.Text>
                   <Typography.Text strong>
                     {bid ? formatMoney(bid.amount) : formatMoney(auction.initialBid)}
@@ -416,21 +438,8 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
                 </Flex>
               </Space>
               {auction.sellerId === currentPlayer.id ? (
-                <Button
-                  size="small"
-                  block
-                  icon={actionBlocked ? <APP_ICONS.lock /> : undefined}
-                  disabled={actionBlocked || !auction.highestBidId}
-                  onClick={() =>
-                    confirmAction(
-                      'Confirmar fechamento',
-                      'Fechar este leilao e transferir o titulo para a maior oferta?',
-                      () => closeTitleAuction(room.id, currentPlayer.id, auction.id),
-                      'Leilao fechado.',
-                    )
-                  }
-                >
-                  Fechar
+                <Button size="small" block icon={<APP_ICONS.lock />} disabled>
+                  Em andamento
                 </Button>
               ) : (
                 <Button
@@ -553,6 +562,12 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
       render: (sellerId) => getPlayerName(players, sellerId),
     },
     {
+      title: 'Prazo',
+      key: 'deadline',
+      width: 120,
+      render: (_, auction) => renderAuctionProgress(auction),
+    },
+    {
       title: 'Maior oferta',
       key: 'highest',
       align: 'right',
@@ -568,20 +583,8 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
       align: 'right',
       render: (_, auction) =>
         auction.sellerId === currentPlayer.id ? (
-          <Button
-            size="small"
-            icon={actionBlocked ? <APP_ICONS.lock /> : undefined}
-            disabled={actionBlocked || !auction.highestBidId}
-            onClick={() =>
-              confirmAction(
-                'Confirmar fechamento',
-                'Fechar este leilao e transferir o titulo para a maior oferta?',
-                () => closeTitleAuction(room.id, currentPlayer.id, auction.id),
-                'Leilao fechado.',
-              )
-            }
-          >
-            Fechar
+          <Button size="small" icon={<APP_ICONS.lock />} disabled>
+            Em andamento
           </Button>
         ) : (
           <Button
@@ -713,12 +716,12 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
         onCancel={() => setActionState(null)}
         onOk={() => saleForm.submit()}
       >
-        <Alert
-          type="warning"
-          showIcon
-          style={{ marginBottom: 14 }}
-          message="Alerta, um leilao aberto nao pode ser cancelado."
-        />
+        <Space orientation="vertical" size={12} style={{ width: '100%' }}>
+          <Flex justify="space-between" gap={12} className="bank-statement-total">
+            <Typography.Text type="secondary">Valor estimado</Typography.Text>
+            <Typography.Text strong>{formatMoney(currentTitleEstimatedValue)}</Typography.Text>
+          </Flex>
+        </Space>
         <Form
           form={saleForm}
           layout="vertical"
@@ -769,6 +772,21 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
         onCancel={() => setActionState(null)}
         onOk={() => auctionForm.submit()}
       >
+        <Space orientation="vertical" size={12} style={{ width: '100%', marginBottom: 14 }}>
+          <Alert
+            type="warning"
+            showIcon
+            message="Alerta, um leilao aberto nao pode ser cancelado."
+          />
+          <Flex justify="space-between" gap={12} className="bank-statement-total">
+            <Typography.Text type="secondary">Valor estimado</Typography.Text>
+            <Typography.Text strong>{formatMoney(currentTitleEstimatedValue)}</Typography.Text>
+          </Flex>
+          <Flex justify="space-between" gap={12} className="bank-statement-total">
+            <Typography.Text type="secondary">Prazo do leilao</Typography.Text>
+            <Typography.Text strong>0 de {auctionDurationDays} dias</Typography.Text>
+          </Flex>
+        </Space>
         <Form
           form={auctionForm}
           layout="vertical"

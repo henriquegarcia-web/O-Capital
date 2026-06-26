@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+﻿import { useMemo, useState } from 'react';
 import { App, Button, Card, Collapse, Flex, Progress, Space, Tag, Typography } from 'antd';
 
 import { claimMissionReward } from '@/api';
@@ -214,7 +214,6 @@ export function MissionsMenuPanel({ currentPlayer, game, room }: MissionsMenuPan
           <Collapse
             key={category.key}
             className="bank-app-card bank-section-collapse"
-            defaultActiveKey={category.key === 'initial' ? [category.key] : undefined}
             items={[
               {
                 key: category.key,

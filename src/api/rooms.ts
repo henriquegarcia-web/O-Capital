@@ -30,6 +30,7 @@ import type {
   PlayerRestriction,
   PlayerStockHolding,
   PlayerTransaction,
+  TitleAuction,
   Room,
   RoomSummary,
   RoundPending,
@@ -43,6 +44,7 @@ import {
   calculateFederalTaxAudit,
   calculateLoanDebtAmount,
   calculateProjectedBankScore,
+  calculateTitleAuctionDurationDays,
   calculateTitleBankSaleValue,
   calculateTitleRent,
   createLapPendings,
@@ -145,6 +147,121 @@ function requirePlayerCanAct(game: GameState, playerId: string, message?: string
   if (isPlayerActionBlocked(game, playerId)) {
     throw new Error(message ?? 'Jogador travado: libere a penalidade antes de realizar esta acao.');
   }
+}
+
+function hasOpenTitleAuction(game: GameState, boardIndex: number) {
+  return Object.values(game.titleAuctions ?? {}).some(
+    (auction) => auction.boardIndex === boardIndex && auction.status === 'open',
+  );
+}
+
+function requireNoOpenTitleAuction(game: GameState, boardIndex: number) {
+  if (hasOpenTitleAuction(game, boardIndex)) {
+    throw new Error('Existe um leilao aberto para este titulo. Aguarde a finalizacao.');
+  }
+}
+
+function getHighestAffordableAuctionBid(game: GameState, auction: TitleAuction) {
+  return Object.values(auction.bids ?? {})
+    .filter((bid) => (game.playerFinances[bid.bidderId]?.balance ?? 0) >= bid.amount)
+    .sort((current, next) => next.amount - current.amount || current.createdAt - next.createdAt)[0];
+}
+
+function closeExpiredTitleAuctions(game: GameState, currentDay: number, now: number): GameState {
+  const expiredAuctions = Object.values(game.titleAuctions ?? {}).filter(
+    (auction) => auction.status === 'open' && currentDay >= auction.expiresAtDay,
+  );
+
+  if (expiredAuctions.length === 0) {
+    return game;
+  }
+
+  return expiredAuctions.reduce<GameState>((nextGame, auction) => {
+    const highestBid = getHighestAffordableAuctionBid(nextGame, auction);
+    const title = nextGame.titles[String(auction.boardIndex)];
+    const closedAuction = {
+      ...auction,
+      status: 'closed' as const,
+      closedAt: now,
+      closedAtDay: currentDay,
+      highestBidId: highestBid?.id ?? auction.highestBidId,
+    };
+
+    if (!highestBid || !title || title.ownerId !== auction.sellerId) {
+      return {
+        ...nextGame,
+        titleAuctions: {
+          ...nextGame.titleAuctions,
+          [auction.id]: closedAuction,
+        },
+      };
+    }
+
+    const sellerFinance = nextGame.playerFinances[auction.sellerId];
+    const buyerFinance = nextGame.playerFinances[highestBid.bidderId];
+
+    if (!sellerFinance || !buyerFinance) {
+      return {
+        ...nextGame,
+        titleAuctions: {
+          ...nextGame.titleAuctions,
+          [auction.id]: closedAuction,
+        },
+      };
+    }
+
+    const nextBuyerFinance = appendFinanceTransaction(
+      {
+        ...buyerFinance,
+        balance: buyerFinance.balance - highestBid.amount,
+      },
+      {
+        kind: 'title-player-purchase',
+        amount: -highestBid.amount,
+        round: nextGame.round,
+        description: 'Compra de titulo em leilao',
+        relatedPlayerId: auction.sellerId,
+        boardIndex: auction.boardIndex,
+      },
+      now,
+    );
+    const nextSellerFinance = appendFinanceTransaction(
+      {
+        ...sellerFinance,
+        balance: sellerFinance.balance + highestBid.amount,
+      },
+      {
+        kind: 'title-player-sale',
+        amount: highestBid.amount,
+        round: nextGame.round,
+        description: 'Venda de titulo em leilao',
+        relatedPlayerId: highestBid.bidderId,
+        boardIndex: auction.boardIndex,
+      },
+      now,
+    );
+
+    return {
+      ...nextGame,
+      titles: {
+        ...nextGame.titles,
+        [String(auction.boardIndex)]: {
+          ...title,
+          ownerId: highestBid.bidderId,
+          acquiredAtRound: nextGame.round,
+        },
+      },
+      titleAuctions: {
+        ...nextGame.titleAuctions,
+        [auction.id]: closedAuction,
+      },
+      playerFinances: {
+        ...nextGame.playerFinances,
+        [auction.sellerId]: nextSellerFinance,
+        [highestBid.bidderId]: nextBuyerFinance,
+      },
+    };
+  }, game);
 }
 
 function createRestrictionForSpace(
@@ -2040,6 +2157,8 @@ export async function sellTitleToBank(roomId: string, playerId: string, boardInd
       throw new Error('Titulo do jogador nao encontrado.');
     }
 
+    requireNoOpenTitleAuction(game, boardIndex);
+
     const saleValue = calculateTitleBankSaleValue(game, title);
     const nextFinance = appendFinanceTransaction(
       {
@@ -2113,6 +2232,8 @@ export async function createTitleSaleOffer(
       throw new Error('Titulo do vendedor nao encontrado.');
     }
 
+    requireNoOpenTitleAuction(game, boardIndex);
+
     if (!buyer) {
       throw new Error('Comprador ativo nao encontrado.');
     }
@@ -2159,6 +2280,8 @@ export async function acceptTitleSaleOffer(roomId: string, buyerId: string, offe
     if (!offer || offer.buyerId !== buyerId || offer.status !== 'pending') {
       throw new Error('Proposta de venda nao encontrada.');
     }
+
+    requireNoOpenTitleAuction(game, offer.boardIndex);
 
     const title = game.titles[String(offer.boardIndex)];
     const sellerFinance = game.playerFinances[offer.sellerId];
@@ -2512,6 +2635,8 @@ export async function createTitleAuction(
       throw new Error('Titulo do vendedor nao encontrado.');
     }
 
+    requireNoOpenTitleAuction(game, boardIndex);
+
     if (
       Object.values(game.titleAuctions).some(
         (auction) => auction.boardIndex === boardIndex && auction.status === 'open',
@@ -2521,6 +2646,8 @@ export async function createTitleAuction(
     }
 
     const auctionId = crypto.randomUUID();
+    const durationDays = calculateTitleAuctionDurationDays(players);
+    const openedAtDay = game.day ?? 0;
 
     return toFirebaseValue({
       ...game,
@@ -2533,6 +2660,9 @@ export async function createTitleAuction(
           initialBid: bidAmount,
           status: 'open',
           bids: {},
+          openedAtDay,
+          durationDays,
+          expiresAtDay: openedAtDay + durationDays,
           createdAt: now,
         },
       },
@@ -2574,6 +2704,10 @@ export async function placeTitleAuctionBid(
 
     if (!auction || auction.status !== 'open') {
       throw new Error('Leilao aberto nao encontrado.');
+    }
+
+    if ((game.day ?? 0) >= auction.expiresAtDay) {
+      throw new Error('O prazo deste leilao foi encerrado.');
     }
 
     if (auction.sellerId === bidderId) {
@@ -2700,6 +2834,7 @@ export async function closeTitleAuction(roomId: string, sellerId: string, auctio
           ...auction,
           status: 'closed',
           closedAt: now,
+          closedAtDay: game.day ?? 0,
         },
       },
       playerFinances: {
@@ -3037,8 +3172,7 @@ export async function finishPlayerTurn(roomId: string, playerId: string) {
     const { nextCompletedTurns, nextPlayerId, nextRound } = advanceTurn(game, roll);
     const nextDay = (game.day ?? 0) + 1;
     const stockMarket = advanceStockMarketDay(game.stockMarket, nextDay, now);
-
-    return toFirebaseValue({
+    const gameWithAdvancedTurn: GameState = {
       ...game,
       round: nextRound,
       day: nextDay,
@@ -3046,6 +3180,12 @@ export async function finishPlayerTurn(roomId: string, playerId: string) {
       turnStartedAt: now,
       completedTurns: nextCompletedTurns,
       stockMarket,
+      updatedAt: now,
+    };
+    const nextGame = closeExpiredTitleAuctions(gameWithAdvancedTurn, nextDay, now);
+
+    return toFirebaseValue({
+      ...nextGame,
       updatedAt: now,
     });
   });
