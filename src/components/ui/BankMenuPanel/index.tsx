@@ -1,12 +1,5 @@
 import { useMemo, useState } from 'react';
 import {
-  BankOutlined,
-  CheckCircleOutlined,
-  DollarOutlined,
-  SafetyCertificateOutlined,
-  SwapOutlined,
-} from '@ant-design/icons';
-import {
   Alert,
   App,
   Button,
@@ -38,6 +31,7 @@ import {
   payTaxPending,
   requestBankLoan,
 } from '@/api';
+import { APP_ICONS } from '@/constants';
 import type { GameState, Player, PlayerDebt, PlayerLoanOffer, Room, TaxPending } from '@/types';
 import {
   BANK_LOAN_INTEREST_RATE,
@@ -51,6 +45,7 @@ import {
   formatMoney,
   getBankScoreLabel,
   getTaxPendingPayableAmount,
+  isPlayerActionBlocked,
   isPlayerOnBankSpace,
 } from '@/utils';
 
@@ -150,14 +145,10 @@ export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPa
     (debt) => debt.kind === 'bank' || debt.kind === 'player-loan',
   ).length;
   const interestPercent = Math.round(BANK_LOAN_INTEREST_RATE * 100);
+  const actionBlocked = isPlayerActionBlocked(game, currentPlayer.id);
 
   function renderPendingAccordionLabel(label: string, count: number) {
-    const color =
-      count === 0
-        ? 'default'
-        : label === 'Dividas a receber'
-          ? 'green'
-          : 'red';
+    const color = count === 0 ? 'default' : label === 'Dividas a receber' ? 'green' : 'red';
 
     return (
       <Flex align="center" justify="space-between" gap={10}>
@@ -221,7 +212,13 @@ export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPa
               </Space>
               <Typography.Text strong>{formatMoney(debt.amount)}</Typography.Text>
             </Flex>
-            <Button size="small" block onClick={() => setPaymentState({ debt })}>
+            <Button
+              size="small"
+              block
+              icon={actionBlocked ? <APP_ICONS.lock /> : undefined}
+              disabled={actionBlocked}
+              onClick={() => setPaymentState({ debt })}
+            >
               Pagar
             </Button>
           </div>
@@ -246,6 +243,8 @@ export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPa
             <Button
               size="small"
               block
+              icon={actionBlocked ? <APP_ICONS.lock /> : undefined}
+              disabled={actionBlocked}
               onClick={() =>
                 confirmAction(
                   'Confirmar perdao',
@@ -300,6 +299,8 @@ export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPa
               <Button
                 size="small"
                 block
+                icon={actionBlocked ? <APP_ICONS.lock /> : undefined}
+                disabled={actionBlocked}
                 onClick={() =>
                   confirmAction(
                     'Confirmar pagamento',
@@ -347,7 +348,12 @@ export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPa
       width: 96,
       align: 'right',
       render: (_, debt) => (
-        <Button size="small" onClick={() => setPaymentState({ debt })}>
+        <Button
+          size="small"
+          icon={actionBlocked ? <APP_ICONS.lock /> : undefined}
+          disabled={actionBlocked}
+          onClick={() => setPaymentState({ debt })}
+        >
           Pagar
         </Button>
       ),
@@ -378,6 +384,8 @@ export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPa
       render: (_, receivable) => (
         <Button
           size="small"
+          icon={actionBlocked ? <APP_ICONS.lock /> : undefined}
+          disabled={actionBlocked}
           onClick={() =>
             confirmAction(
               'Confirmar perdao',
@@ -446,6 +454,8 @@ export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPa
         return (
           <Button
             size="small"
+            icon={actionBlocked ? <APP_ICONS.lock /> : undefined}
+            disabled={actionBlocked}
             onClick={() =>
               confirmAction(
                 'Confirmar pagamento',
@@ -482,6 +492,8 @@ export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPa
                 <Button
                   size="small"
                   type="primary"
+                  icon={actionBlocked ? <APP_ICONS.lock /> : undefined}
+                  disabled={actionBlocked}
                   onClick={() =>
                     confirmAction(
                       'Aceitar emprestimo',
@@ -496,6 +508,8 @@ export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPa
                 <Button
                   size="small"
                   danger
+                  icon={actionBlocked ? <APP_ICONS.lock /> : undefined}
+                  disabled={actionBlocked}
                   onClick={() =>
                     confirmAction(
                       'Recusar emprestimo',
@@ -523,6 +537,8 @@ export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPa
                 size="small"
                 danger
                 block
+                icon={actionBlocked ? <APP_ICONS.lock /> : undefined}
+                disabled={actionBlocked}
                 onClick={() =>
                   confirmAction(
                     'Cancelar solicitacao',
@@ -572,6 +588,8 @@ export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPa
             <Button
               size="small"
               type="primary"
+              icon={actionBlocked ? <APP_ICONS.lock /> : undefined}
+              disabled={actionBlocked}
               onClick={() =>
                 confirmAction(
                   'Aceitar emprestimo',
@@ -586,6 +604,8 @@ export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPa
             <Button
               size="small"
               danger
+              icon={actionBlocked ? <APP_ICONS.lock /> : undefined}
+              disabled={actionBlocked}
               onClick={() =>
                 confirmAction(
                   'Recusar emprestimo',
@@ -602,6 +622,8 @@ export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPa
           <Button
             size="small"
             danger
+            icon={actionBlocked ? <APP_ICONS.lock /> : undefined}
+            disabled={actionBlocked}
             onClick={() =>
               confirmAction(
                 'Cancelar solicitacao',
@@ -654,7 +676,7 @@ export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPa
           <Row gutter={[10, 10]}>
             <Col xs={12}>
               <div className="player-finance-card__metric bank-page-metric">
-                <BankOutlined />
+                <APP_ICONS.bank />
                 <Typography.Text className="player-finance-card__metric-label">
                   Dividas ativas
                 </Typography.Text>
@@ -665,7 +687,7 @@ export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPa
             </Col>
             <Col xs={12}>
               <div className="player-finance-card__metric bank-page-metric">
-                <SafetyCertificateOutlined />
+                <APP_ICONS.safetyCertificate />
                 <Typography.Text className="player-finance-card__metric-label">
                   Dividas a receber
                 </Typography.Text>
@@ -676,7 +698,7 @@ export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPa
             </Col>
             <Col xs={12}>
               <div className="player-finance-card__metric bank-page-metric">
-                <DollarOutlined />
+                <APP_ICONS.dollar />
                 <Typography.Text className="player-finance-card__metric-label">
                   Impostos pendentes
                 </Typography.Text>
@@ -687,7 +709,7 @@ export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPa
             </Col>
             <Col xs={12}>
               <div className="player-finance-card__metric bank-page-metric">
-                <SwapOutlined />
+                <APP_ICONS.swap />
                 <Typography.Text className="player-finance-card__metric-label">
                   Emprestimos ativos
                 </Typography.Text>
@@ -773,7 +795,8 @@ export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPa
                     <Button
                       type="primary"
                       htmlType="submit"
-                      disabled={isProjectedBankruptcy}
+                      icon={actionBlocked ? <APP_ICONS.lock /> : undefined}
+                      disabled={actionBlocked || isProjectedBankruptcy}
                       loading={loadingAction}
                       className="bank-loan-submit"
                     >
@@ -852,8 +875,8 @@ export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPa
                     <Button
                       type="primary"
                       htmlType="submit"
-                      icon={<SwapOutlined />}
-                      disabled={isPlayerLoanBankruptcy}
+                      icon={actionBlocked ? <APP_ICONS.lock /> : <APP_ICONS.swap />}
+                      disabled={actionBlocked || isPlayerLoanBankruptcy}
                       loading={loadingAction}
                       className="bank-loan-submit"
                     >
@@ -980,7 +1003,8 @@ export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPa
           {paymentState ? (
             <Button
               block
-              icon={<CheckCircleOutlined />}
+              icon={actionBlocked ? <APP_ICONS.lock /> : <APP_ICONS.checkCircle />}
+              disabled={actionBlocked}
               onClick={() => paymentForm.setFieldValue('amount', paymentState.debt.amount)}
             >
               Usar valor total: {formatMoney(paymentState.debt.amount)}

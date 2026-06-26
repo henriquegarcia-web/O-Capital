@@ -1,7 +1,6 @@
-import { BankOutlined, CalendarOutlined, TeamOutlined } from '@ant-design/icons';
 import { Card, Col, Row, Space, Statistic, Typography } from 'antd';
 
-import { GAME_LIMITS } from '@/constants';
+import { APP_ICONS, GAME_LIMITS } from '@/constants';
 import type { Room } from '@/types';
 
 type RoomInfoCardProps = {
@@ -15,7 +14,7 @@ export function RoomInfoCard({ playerCount, room }: RoomInfoCardProps) {
       <Space orientation="vertical" size={12} style={{ width: '100%' }}>
         <Space size={12} align="start">
           <span className="bank-app-avatar">
-            <BankOutlined />
+            <APP_ICONS.bank />
           </span>
           <Space orientation="vertical" size={4}>
             <Typography.Title level={3} style={{ margin: 0 }}>
@@ -28,14 +27,14 @@ export function RoomInfoCard({ playerCount, room }: RoomInfoCardProps) {
             <Statistic
               title="Jogadores"
               value={`${playerCount}/${GAME_LIMITS.maxPlayers}`}
-              prefix={<TeamOutlined />}
+              prefix={<APP_ICONS.team />}
             />
           </Col>
           <Col span={12}>
             <Statistic
               title="Status"
               value={room.status === 'waiting' ? 'Aberta' : 'Ativa'}
-              prefix={<CalendarOutlined />}
+              prefix={<APP_ICONS.calendar />}
             />
           </Col>
         </Row>

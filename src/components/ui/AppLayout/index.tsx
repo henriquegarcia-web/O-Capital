@@ -1,14 +1,7 @@
-import {
-  AppstoreOutlined,
-  ArrowLeftOutlined,
-  HistoryOutlined,
-  TrophyOutlined,
-  LogoutOutlined,
-} from '@ant-design/icons';
 import { Button, Flex, Layout, Typography } from 'antd';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 
-import { APP_HISTORY_MENU, APP_MENU_ITEMS, APP_RANKING_MENU } from '@/constants';
+import { APP_HISTORY_MENU, APP_ICONS, APP_MENU_ITEMS, APP_RANKING_MENU } from '@/constants';
 import { clearCurrentRoomPlayerId } from '@/utils';
 
 const { Header, Content } = Layout;
@@ -26,11 +19,12 @@ function getHeaderCenter(pathname: string) {
 
   if (menuKey) {
     const menu =
-      (APP_MENU_ITEMS.find((item) => item.key === menuKey) ?? APP_HISTORY_MENU.key === menuKey)
+      APP_MENU_ITEMS.find((item) => item.key === menuKey) ??
+      (APP_HISTORY_MENU.key === menuKey
         ? APP_HISTORY_MENU
         : APP_RANKING_MENU.key === menuKey
           ? APP_RANKING_MENU
-          : null;
+          : null);
 
     return menu?.label ?? 'Aplicativo';
   }
@@ -76,21 +70,21 @@ export function AppLayout() {
               {isBottomNavigatorMenu ? (
                 <Button
                   type="text"
-                  icon={<LogoutOutlined />}
+                  icon={<APP_ICONS.logout />}
                   aria-label="Sair"
                   onClick={handleExitApp}
                 />
               ) : activeAppMenuKey && roomId ? (
                 <Button
                   type="text"
-                  icon={<ArrowLeftOutlined />}
+                  icon={<APP_ICONS.arrowLeft />}
                   aria-label="Voltar para partida"
                   onClick={() => navigate(`/rooms/${roomId}/app/partida`)}
                 />
               ) : !isHome ? (
                 <Button
                   type="text"
-                  icon={<ArrowLeftOutlined />}
+                  icon={<APP_ICONS.arrowLeft />}
                   aria-label="Voltar"
                   onClick={handleBack}
                 />
@@ -112,13 +106,13 @@ export function AppLayout() {
                 <Flex align="center" gap={2}>
                   <Button
                     type="text"
-                    icon={<HistoryOutlined />}
+                    icon={<APP_ICONS.history />}
                     aria-label="Historico"
                     onClick={() => navigate(`/rooms/${roomId}/app/${APP_HISTORY_MENU.key}`)}
                   />
                   <Button
                     type="text"
-                    icon={<TrophyOutlined />}
+                    icon={<APP_ICONS.trophy />}
                     aria-label="Ranking"
                     onClick={() => navigate(`/rooms/${roomId}/app/${APP_RANKING_MENU.key}`)}
                   />
@@ -126,7 +120,7 @@ export function AppLayout() {
               ) : isRoomDetails && roomId ? (
                 <Button
                   type="text"
-                  icon={<AppstoreOutlined />}
+                  icon={<APP_ICONS.appstore />}
                   aria-label="Acessar tabuleiro"
                   onClick={() => navigate(`/rooms/${roomId}/game/board`)}
                 />

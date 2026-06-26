@@ -1,5 +1,4 @@
-import { BankOutlined, MinusCircleOutlined, PlusCircleOutlined } from '@ant-design/icons';
-import {
+﻿import {
   App,
   Button,
   Card,
@@ -14,6 +13,7 @@ import {
 } from 'antd';
 
 import { applyBankBalanceAction } from '@/api';
+import { APP_ICONS } from '@/constants';
 import type { Player, Room } from '@/types';
 import { formatMoney } from '@/utils';
 
@@ -66,7 +66,7 @@ export function BankActionsCard({ players, room }: BankActionsCardProps) {
     <Card className="bank-app-card">
       <Space orientation="vertical" size={14} style={{ width: '100%' }}>
         <Flex align="center" gap={10} wrap className="bank-app-card-header">
-          <BankOutlined className="bank-actions-card__icon" />
+          <APP_ICONS.bank className="bank-actions-card__icon" />
           <Typography.Title level={4} style={{ margin: 0 }}>
             Acoes do Banco
           </Typography.Title>
@@ -137,8 +137,8 @@ export function BankActionsCard({ players, room }: BankActionsCardProps) {
               <Segmented
                 block
                 options={[
-                  { label: 'Somar', value: 'add', icon: <PlusCircleOutlined /> },
-                  { label: 'Subtrair', value: 'subtract', icon: <MinusCircleOutlined /> },
+                  { label: 'Somar', value: 'add', icon: <APP_ICONS.plusCircle /> },
+                  { label: 'Subtrair', value: 'subtract', icon: <APP_ICONS.minusCircle /> },
                 ]}
               />
             </Form.Item>

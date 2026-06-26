@@ -1,4 +1,4 @@
-﻿import { BankOutlined, UserOutlined } from '@ant-design/icons';
+import { APP_ICONS, BOARD_SPACES_BY_INDEX } from '@/constants';
 import { Card, Empty, Flex, Space, Tabs, Typography } from 'antd';
 
 import type { GameState, Player, PlayerTransaction } from '@/types';
@@ -43,6 +43,16 @@ function sortByNewest(entries: HistoryEntry[]) {
   return [...entries].sort((current, next) => next.createdAt - current.createdAt);
 }
 
+function getHistoryDescription(entry: HistoryEntry) {
+  if (entry.kind !== 'event') {
+    return entry.description;
+  }
+
+  return BOARD_SPACES_BY_INDEX[entry.boardIndex ?? 0]?.kind === 'global-event'
+    ? 'Evento global'
+    : 'Evento';
+}
+
 function renderHistoryEntries(entries: HistoryEntry[], showPlayerName: boolean) {
   if (entries.length === 0) {
     return <Empty description="Nenhuma movimentacao registrada" />;
@@ -72,7 +82,7 @@ function renderHistoryEntries(entries: HistoryEntry[], showPlayerName: boolean) 
                   : entry.playerName}
               </Typography.Text>
               <Typography.Text className="history-compact-row__description">
-                {entry.description}
+                {getHistoryDescription(entry)}
               </Typography.Text>
             </Space>
           </Flex>
@@ -117,7 +127,7 @@ export function HistoryMenuPanel({ currentPlayer, game, players }: HistoryMenuPa
                 key: 'personal',
                 label: (
                   <Space size={6}>
-                    <UserOutlined />
+                    <APP_ICONS.user />
                     Pessoal
                   </Space>
                 ),
@@ -127,7 +137,7 @@ export function HistoryMenuPanel({ currentPlayer, game, players }: HistoryMenuPa
                 key: 'global',
                 label: (
                   <Space size={6}>
-                    <BankOutlined />
+                    <APP_ICONS.bank />
                     Geral
                   </Space>
                 ),

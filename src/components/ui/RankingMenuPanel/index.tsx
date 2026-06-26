@@ -1,4 +1,4 @@
-﻿import { WalletOutlined } from '@ant-design/icons';
+import { APP_ICONS } from '@/constants';
 import { Card, Empty, Flex, Space, Typography } from 'antd';
 
 import type { GameState, Player } from '@/types';
@@ -45,7 +45,7 @@ export function RankingMenuPanel({ currentPlayer, game, players }: RankingMenuPa
                 {item.player.name}
               </Typography.Text>
               <Flex align="center" gap={5} className="ranking-fortune">
-                <WalletOutlined />
+                <APP_ICONS.wallet />
                 <Typography.Text>{formatMoney(item.fortune)}</Typography.Text>
               </Flex>
             </Flex>

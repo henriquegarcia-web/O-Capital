@@ -1,8 +1,7 @@
-import { LockOutlined } from '@ant-design/icons';
 import { Flex, Form, Radio, Tooltip } from 'antd';
 import { Controller, type Control, type FieldPath, type FieldValues } from 'react-hook-form';
 
-import { PROFILE_COLORS } from '@/constants';
+import { APP_ICONS, PROFILE_COLORS } from '@/constants';
 
 type ControlledProfileColorSelectProps<TFieldValues extends FieldValues> = {
   control: Control<TFieldValues>;
@@ -39,7 +38,9 @@ export function ControlledProfileColorSelect<TFieldValues extends FieldValues>({
                         borderColor: color.value,
                       }}
                     >
-                      {isDisabled ? <LockOutlined className="profile-color-option__lock" /> : null}
+                      {isDisabled ? (
+                        <APP_ICONS.lock className="profile-color-option__lock" />
+                      ) : null}
                       <span className="profile-color-option__label">{color.label}</span>
                     </Radio.Button>
                   </Tooltip>

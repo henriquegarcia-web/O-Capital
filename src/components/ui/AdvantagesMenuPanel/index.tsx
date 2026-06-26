@@ -1,14 +1,8 @@
-﻿import { useMemo, useState } from 'react';
-import {
-  CrownOutlined,
-  SafetyCertificateOutlined,
-  ShopOutlined,
-  WalletOutlined,
-} from '@ant-design/icons';
+import { useMemo, useState } from 'react';
 import { App, Button, Card, Empty, Flex, Form, Modal, Select, Space, Tag, Typography } from 'antd';
 
 import { activateTaxReduction, useForceAuction as forceAuctionAdvantage } from '@/api';
-import { BOARD_SPACES_BY_INDEX, GAME_BALANCE } from '@/constants';
+import { APP_ICONS, BOARD_SPACES_BY_INDEX, GAME_BALANCE } from '@/constants';
 import type { GameState, Player, Room } from '@/types';
 import {
   calculateTitleBankSaleValue,
@@ -91,11 +85,11 @@ export function AdvantagesMenuPanel({
     : getUseBlockReason(taxReductionQuantity);
 
   function getAdvantageIcon(advantageKey: (typeof GAME_BALANCE.advantages.items)[number]['key']) {
-    if (advantageKey === 'force-auction') return <CrownOutlined />;
-    if (advantageKey === 'rent-insurance') return <WalletOutlined />;
-    if (advantageKey === 'tax-reduction') return <ShopOutlined />;
+    if (advantageKey === 'force-auction') return <APP_ICONS.crown />;
+    if (advantageKey === 'rent-insurance') return <APP_ICONS.wallet />;
+    if (advantageKey === 'tax-reduction') return <APP_ICONS.shop />;
 
-    return <SafetyCertificateOutlined />;
+    return <APP_ICONS.safetyCertificate />;
   }
 
   return (
@@ -166,6 +160,7 @@ export function AdvantagesMenuPanel({
                         size="small"
                         type="primary"
                         block
+                        icon={actionBlocked ? <APP_ICONS.lock /> : undefined}
                         disabled={Boolean(blockReason)}
                         onClick={() => setForceAuctionOpen(true)}
                       >
@@ -177,6 +172,7 @@ export function AdvantagesMenuPanel({
                         size="small"
                         type="primary"
                         block
+                        icon={actionBlocked ? <APP_ICONS.lock /> : undefined}
                         disabled={Boolean(blockReason)}
                         loading={loading}
                         onClick={() =>

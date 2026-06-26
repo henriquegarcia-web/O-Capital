@@ -1,51 +1,42 @@
-import {
-  BankOutlined,
-  CrownOutlined,
-  GiftOutlined,
-  HistoryOutlined,
-  PlayCircleOutlined,
-  ReconciliationOutlined,
-  RocketOutlined,
-  TrophyOutlined,
-} from '@ant-design/icons';
-
 import type { PlayerRole } from '@/types';
+
+import { APP_ICONS } from './icons';
 
 export const APP_MENU_ITEMS = [
   {
     key: 'partida',
     label: 'Partida',
-    icon: PlayCircleOutlined,
+    icon: APP_ICONS.playCircle,
   },
   {
     key: 'banco',
     label: 'Banco',
-    icon: BankOutlined,
+    icon: APP_ICONS.bank,
   },
   {
     key: 'titulos',
     label: 'Titulos',
-    icon: ReconciliationOutlined,
+    icon: APP_ICONS.reconciliation,
   },
   {
     key: 'acoes',
     label: 'Acoes',
-    icon: RocketOutlined,
+    icon: APP_ICONS.rocket,
   },
   {
     key: 'vantagens',
     label: 'Vantagens',
-    icon: GiftOutlined,
+    icon: APP_ICONS.gift,
   },
   {
     key: 'missoes',
     label: 'Missoes',
-    icon: TrophyOutlined,
+    icon: APP_ICONS.trophy,
   },
   {
     key: 'banqueiro',
     label: 'Banqueiro',
-    icon: CrownOutlined,
+    icon: APP_ICONS.crown,
     role: 'banqueiro' satisfies PlayerRole,
   },
 ] as const;
@@ -53,13 +44,13 @@ export const APP_MENU_ITEMS = [
 export const APP_HISTORY_MENU = {
   key: 'historico',
   label: 'Historico',
-  icon: HistoryOutlined,
+  icon: APP_ICONS.history,
 } as const;
 
 export const APP_RANKING_MENU = {
   key: 'ranking',
   label: 'Ranking',
-  icon: TrophyOutlined,
+  icon: APP_ICONS.trophy,
 } as const;
 
 export type AppMenuKey =

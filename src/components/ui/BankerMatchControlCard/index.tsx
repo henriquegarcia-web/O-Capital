@@ -1,16 +1,8 @@
-import {
-  ArrowDownOutlined,
-  ArrowUpOutlined,
-  DeleteOutlined,
-  PauseCircleOutlined,
-  PlayCircleOutlined,
-  ReloadOutlined,
-  StopOutlined,
-} from '@ant-design/icons';
 import { App, Button, Card, Flex, Form, Input, Space, Table, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { APP_ICONS } from '@/constants';
 
 import {
   deleteRoom,
@@ -172,14 +164,14 @@ export function BankerMatchControlCard({ players, room }: BankerMatchControlCard
         <Space.Compact>
           <Button
             size="small"
-            icon={<ArrowUpOutlined />}
+            icon={<APP_ICONS.arrowUp />}
             aria-label="Subir jogador"
             disabled={index === 0}
             onClick={() => movePlayer(player.id, -1)}
           />
           <Button
             size="small"
-            icon={<ArrowDownOutlined />}
+            icon={<APP_ICONS.arrowDown />}
             aria-label="Descer jogador"
             disabled={index === orderedPlayers.length - 1}
             onClick={() => movePlayer(player.id, 1)}
@@ -187,7 +179,7 @@ export function BankerMatchControlCard({ players, room }: BankerMatchControlCard
           <Button
             danger
             size="small"
-            icon={<DeleteOutlined />}
+            icon={<APP_ICONS.delete />}
             aria-label="Eliminar jogador"
             disabled={player.status === 'eliminated'}
             onClick={() =>
@@ -230,7 +222,9 @@ export function BankerMatchControlCard({ players, room }: BankerMatchControlCard
               type="primary"
               block
               className="banker-control-button"
-              icon={game.status === 'playing' ? <PauseCircleOutlined /> : <PlayCircleOutlined />}
+              icon={
+                game.status === 'playing' ? <APP_ICONS.pauseCircle /> : <APP_ICONS.playCircle />
+              }
               onClick={() =>
                 game.status === 'playing'
                   ? confirmAction(
@@ -252,7 +246,7 @@ export function BankerMatchControlCard({ players, room }: BankerMatchControlCard
             <Button
               block
               className="banker-control-button"
-              icon={<ReloadOutlined />}
+              icon={<APP_ICONS.reload />}
               disabled={game.status !== 'playing'}
               onClick={() =>
                 confirmAction(
@@ -269,7 +263,7 @@ export function BankerMatchControlCard({ players, room }: BankerMatchControlCard
               danger
               block
               className="banker-control-button"
-              icon={<StopOutlined />}
+              icon={<APP_ICONS.stop />}
               onClick={() =>
                 confirmAction(
                   'Finalizar partida?',
@@ -338,7 +332,7 @@ export function BankerMatchControlCard({ players, room }: BankerMatchControlCard
             </Flex>
           </Form>
 
-          <Button danger block icon={<DeleteOutlined />} onClick={confirmDeleteRoom}>
+          <Button danger block icon={<APP_ICONS.delete />} onClick={confirmDeleteRoom}>
             Deletar sala
           </Button>
         </Space>

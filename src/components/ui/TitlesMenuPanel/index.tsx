@@ -1,15 +1,5 @@
 import { useMemo, useState } from 'react';
 import {
-  BankOutlined,
-  DollarOutlined,
-  HomeOutlined,
-  LineChartOutlined,
-  RiseOutlined,
-  ShopOutlined,
-  ShoppingCartOutlined,
-  SwapOutlined,
-} from '@ant-design/icons';
-import {
   App,
   Alert,
   Button,
@@ -40,7 +30,7 @@ import {
   placeTitleAuctionBid,
   sellTitleToBank,
 } from '@/api';
-import { BOARD_SPACES_BY_INDEX, NEIGHBORHOODS, PROPERTY_BLUEPRINTS } from '@/constants';
+import { APP_ICONS, BOARD_SPACES_BY_INDEX, NEIGHBORHOODS, PROPERTY_BLUEPRINTS } from '@/constants';
 import type {
   GameState,
   Player,
@@ -62,6 +52,7 @@ import {
   formatMoney,
   getPlayerTitles,
   getTitleLandValue,
+  isPlayerActionBlocked,
 } from '@/utils';
 
 type TitlesMenuPanelProps = {
@@ -115,6 +106,7 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
   const activePlayers = players.filter(
     (player) => player.status !== 'eliminated' && player.id !== currentPlayer.id,
   );
+  const actionBlocked = isPlayerActionBlocked(game, currentPlayer.id);
 
   const roundIncome = calculatePlayerRoundIncome(game, currentPlayer.id);
   const roundCosts = myTitles.reduce(
@@ -259,7 +251,7 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
             return (
               <Flex key={property.id} align="center" gap={8} className="bank-title-property-item">
                 <span className="bank-title-property-item__icon">
-                  {blueprint?.category === 'business' ? <ShopOutlined /> : <HomeOutlined />}
+                  {blueprint?.category === 'business' ? <APP_ICONS.shop /> : <APP_ICONS.home />}
                 </span>
                 <Typography.Text>{label}</Typography.Text>
               </Flex>
@@ -286,7 +278,8 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
       <Flex gap={8} wrap className="bank-title-actions">
         <Button
           size="small"
-          icon={<BankOutlined />}
+          icon={actionBlocked ? <APP_ICONS.lock /> : <APP_ICONS.bank />}
+          disabled={actionBlocked}
           onClick={() =>
             confirmAction(
               'Confirmar venda ao banco',
@@ -300,14 +293,16 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
         </Button>
         <Button
           size="small"
-          icon={<SwapOutlined />}
+          icon={actionBlocked ? <APP_ICONS.lock /> : <APP_ICONS.swap />}
+          disabled={actionBlocked}
           onClick={() => setActionState({ type: 'direct-sale', title })}
         >
           Vender
         </Button>
         <Button
           size="small"
-          icon={<RiseOutlined />}
+          icon={actionBlocked ? <APP_ICONS.lock /> : <APP_ICONS.rise />}
+          disabled={actionBlocked}
           onClick={() => setActionState({ type: 'auction', title })}
         >
           Leilao
@@ -358,7 +353,8 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
                 size="small"
                 type="primary"
                 block
-                icon={<ShoppingCartOutlined />}
+                icon={actionBlocked ? <APP_ICONS.lock /> : <APP_ICONS.shoppingCart />}
+                disabled={actionBlocked}
                 onClick={() =>
                   confirmAction(
                     'Confirmar proposta',
@@ -374,6 +370,8 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
                 size="small"
                 danger
                 block
+                icon={actionBlocked ? <APP_ICONS.lock /> : undefined}
+                disabled={actionBlocked}
                 onClick={() =>
                   confirmAction(
                     'Recusar proposta',
@@ -421,7 +419,8 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
                 <Button
                   size="small"
                   block
-                  disabled={!auction.highestBidId}
+                  icon={actionBlocked ? <APP_ICONS.lock /> : undefined}
+                  disabled={actionBlocked || !auction.highestBidId}
                   onClick={() =>
                     confirmAction(
                       'Confirmar fechamento',
@@ -434,7 +433,13 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
                   Fechar
                 </Button>
               ) : (
-                <Button size="small" block onClick={() => setBidAuction(auction)}>
+                <Button
+                  size="small"
+                  block
+                  icon={actionBlocked ? <APP_ICONS.lock /> : undefined}
+                  disabled={actionBlocked}
+                  onClick={() => setBidAuction(auction)}
+                >
                   Ofertar
                 </Button>
               )}
@@ -501,7 +506,8 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
             size="small"
             type="primary"
             block
-            icon={<ShoppingCartOutlined />}
+            icon={actionBlocked ? <APP_ICONS.lock /> : <APP_ICONS.shoppingCart />}
+            disabled={actionBlocked}
             onClick={() =>
               confirmAction(
                 'Confirmar proposta',
@@ -517,6 +523,8 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
             size="small"
             danger
             block
+            icon={actionBlocked ? <APP_ICONS.lock /> : undefined}
+            disabled={actionBlocked}
             onClick={() =>
               confirmAction(
                 'Recusar proposta',
@@ -562,7 +570,8 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
         auction.sellerId === currentPlayer.id ? (
           <Button
             size="small"
-            disabled={!auction.highestBidId}
+            icon={actionBlocked ? <APP_ICONS.lock /> : undefined}
+            disabled={actionBlocked || !auction.highestBidId}
             onClick={() =>
               confirmAction(
                 'Confirmar fechamento',
@@ -575,7 +584,12 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
             Fechar
           </Button>
         ) : (
-          <Button size="small" onClick={() => setBidAuction(auction)}>
+          <Button
+            size="small"
+            icon={actionBlocked ? <APP_ICONS.lock /> : undefined}
+            disabled={actionBlocked}
+            onClick={() => setBidAuction(auction)}
+          >
             Ofertar
           </Button>
         ),
@@ -591,15 +605,15 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
               <Typography.Title level={4} style={{ margin: 0 }}>
                 Titulos
               </Typography.Title>
-            <Typography.Text type="secondary">
-              {myTitles.length} titulos adquiridos
-            </Typography.Text>
-          </Space>
+              <Typography.Text type="secondary">
+                {myTitles.length} titulos adquiridos
+              </Typography.Text>
+            </Space>
           </Flex>
           <Row gutter={[10, 10]}>
             <Col xs={12}>
               <div className="player-finance-card__metric">
-                <LineChartOutlined />
+                <APP_ICONS.lineChart />
                 <Typography.Text className="player-finance-card__metric-label">
                   Receber por rodada
                 </Typography.Text>
@@ -610,7 +624,7 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
             </Col>
             <Col xs={12}>
               <div className="player-finance-card__metric">
-                <DollarOutlined />
+                <APP_ICONS.dollar />
                 <Typography.Text className="player-finance-card__metric-label">
                   Pagar por rodada
                 </Typography.Text>

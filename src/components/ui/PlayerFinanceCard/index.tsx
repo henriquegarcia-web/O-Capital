@@ -1,5 +1,5 @@
-import { AreaChartOutlined, LineChartOutlined, WalletOutlined } from '@ant-design/icons';
 import { Card, Col, Flex, Row, Space, Typography } from 'antd';
+import { APP_ICONS } from '@/constants';
 
 import type { GameState, Player } from '@/types';
 import {
@@ -16,9 +16,9 @@ type PlayerFinanceCardProps = {
 };
 
 const metrics = [
-  { key: 'balance', label: 'Saldo atual', icon: WalletOutlined },
-  { key: 'netWorth', label: 'Valor de patrimonio', icon: LineChartOutlined },
-  { key: 'stocks', label: 'Carteira de acoes', icon: AreaChartOutlined },
+  { key: 'balance', label: 'Saldo atual', icon: APP_ICONS.wallet },
+  { key: 'netWorth', label: 'Valor de patrimonio', icon: APP_ICONS.lineChart },
+  { key: 'stocks', label: 'Carteira de acoes', icon: APP_ICONS.areaChart },
 ] as const;
 
 export function PlayerFinanceCard({ currentPlayer, game }: PlayerFinanceCardProps) {
@@ -67,7 +67,7 @@ export function PlayerFinanceCard({ currentPlayer, game }: PlayerFinanceCardProp
           })}
           <Col xs={12} sm={8}>
             <div className="player-finance-card__metric">
-              <LineChartOutlined />
+              <APP_ICONS.lineChart />
               <Typography.Text className="player-finance-card__metric-label">
                 Missoes concluidas
               </Typography.Text>

@@ -1,6 +1,6 @@
-import { ArrowLeftOutlined } from '@ant-design/icons';
 import { Button, Result, Skeleton } from 'antd';
 import { useNavigate, useParams } from 'react-router-dom';
+import { APP_ICONS } from '@/constants';
 
 import { GameBoard } from '@/components/ui';
 import { useRoom } from '@/hooks';
@@ -24,7 +24,7 @@ export function GameBoardPage() {
         type="primary"
         shape="circle"
         size="large"
-        icon={<ArrowLeftOutlined />}
+        icon={<APP_ICONS.arrowLeft />}
         aria-label="Voltar"
         className="game-board-page__back"
         onClick={() => navigate(-1)}

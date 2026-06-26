@@ -1,13 +1,8 @@
 import { useMemo, useState } from 'react';
-import {
-  CheckCircleOutlined,
-  GiftOutlined,
-  SafetyCertificateOutlined,
-  TrophyOutlined,
-} from '@ant-design/icons';
 import { App, Button, Card, Collapse, Flex, Progress, Space, Tag, Typography } from 'antd';
 
 import { claimMissionReward } from '@/api';
+import { APP_ICONS } from '@/constants';
 import type { GameState, Player, Room } from '@/types';
 import {
   formatMoney,
@@ -15,6 +10,7 @@ import {
   getMissionProgress,
   isMissionClaimed,
   isMissionCompleted,
+  isPlayerActionBlocked,
   MISSIONS_BY_CATEGORY,
 } from '@/utils';
 import type { MissionDefinition, MissionReward } from '@/utils';
@@ -65,6 +61,7 @@ function getMissionShortTitle(mission: MissionDefinition) {
 export function MissionsMenuPanel({ currentPlayer, game, room }: MissionsMenuPanelProps) {
   const { message } = App.useApp();
   const [claimingMissionKey, setClaimingMissionKey] = useState<string | null>(null);
+  const actionBlocked = isPlayerActionBlocked(game, currentPlayer.id);
   const missionStats = useMemo(() => {
     const missions = MISSIONS_BY_CATEGORY.flatMap((category) => category.missions);
     const completed = missions.filter((mission) =>
@@ -106,8 +103,8 @@ export function MissionsMenuPanel({ currentPlayer, game, room }: MissionsMenuPan
     return (
       <Card key={mission.key} className="bank-app-card mission-card" size="small">
         <Space orientation="vertical" size={12} className="mission-card__content">
-          <Flex align="flex-start" justify="space-between" gap={10}>
-            <Space size={10} align="start" className="mission-card__identity">
+          <Flex align="center" justify="space-between" gap={10}>
+            <Space size={10} align="center" className="mission-card__identity">
               <span
                 className={
                   completed
@@ -115,7 +112,7 @@ export function MissionsMenuPanel({ currentPlayer, game, room }: MissionsMenuPan
                     : 'board-space-property-icon'
                 }
               >
-                {completed ? <CheckCircleOutlined /> : <TrophyOutlined />}
+                {completed ? <APP_ICONS.checkCircle /> : <APP_ICONS.trophy />}
               </span>
               <Typography.Title level={5} className="mission-card__title">
                 {getMissionShortTitle(mission)}
@@ -126,30 +123,42 @@ export function MissionsMenuPanel({ currentPlayer, game, room }: MissionsMenuPan
             </Tag>
           </Flex>
 
-          <Space orientation="vertical" size={4} className="mission-card__copy">
+          <Flex vertical gap={4} className="mission-card__copy">
             <Typography.Text className="mission-card__description">{mission.title}</Typography.Text>
             <Flex align="center" justify="space-between" gap={10} wrap>
               <Typography.Text type="secondary">Recompensa</Typography.Text>
-              <Typography.Text type="secondary" className="mission-card__reward">
+              <Typography.Text className="mission-card__reward">
                 {formatReward(mission.reward)}
               </Typography.Text>
             </Flex>
-          </Space>
+          </Flex>
 
           <Space orientation="vertical" size={6} className="mission-card__progress">
             <Flex justify="space-between" gap={12}>
               <Typography.Text type="secondary">Progresso</Typography.Text>
               <Typography.Text strong>{formatProgressValue(mission, progress)}</Typography.Text>
             </Flex>
-            <Progress percent={percent} showInfo={false} status={completed ? 'success' : 'active'} />
+            <Progress
+              percent={percent}
+              showInfo={false}
+              status={completed ? 'success' : 'active'}
+            />
           </Space>
 
           <Button
             type="primary"
             block
-            disabled={!completed || claimed}
+            disabled={actionBlocked || !completed || claimed}
             loading={claimingMissionKey === mission.key}
-            icon={claimed ? <CheckCircleOutlined /> : <GiftOutlined />}
+            icon={
+              actionBlocked ? (
+                <APP_ICONS.lock />
+              ) : claimed ? (
+                <APP_ICONS.checkCircle />
+              ) : (
+                <APP_ICONS.gift />
+              )
+            }
             onClick={() => void handleClaim(mission)}
           >
             {claimed ? 'Recompensa resgatada' : 'Resgatar recompensa'}
@@ -165,7 +174,7 @@ export function MissionsMenuPanel({ currentPlayer, game, room }: MissionsMenuPan
         <Space orientation="vertical" size={14} style={{ width: '100%' }}>
           <Flex align="center" justify="space-between" gap={12} wrap>
             <Space size={10} className="bank-app-card-header">
-              <SafetyCertificateOutlined />
+              <APP_ICONS.safetyCertificate />
               <Typography.Title level={4} style={{ margin: 0 }}>
                 Missoes
               </Typography.Title>
@@ -177,13 +186,17 @@ export function MissionsMenuPanel({ currentPlayer, game, room }: MissionsMenuPan
 
           <Flex gap={10} wrap>
             <div className="mission-summary-metric">
-              <Typography.Text className="mission-summary-metric__label">Concluidas</Typography.Text>
+              <Typography.Text className="mission-summary-metric__label">
+                Concluidas
+              </Typography.Text>
               <Typography.Text className="mission-summary-metric__value">
                 {missionStats.completed} / {missionStats.total}
               </Typography.Text>
             </div>
             <div className="mission-summary-metric">
-              <Typography.Text className="mission-summary-metric__label">Resgatadas</Typography.Text>
+              <Typography.Text className="mission-summary-metric__label">
+                Resgatadas
+              </Typography.Text>
               <Typography.Text className="mission-summary-metric__value">
                 {missionStats.claimed}
               </Typography.Text>

@@ -1,7 +1,6 @@
-import { ArrowRightOutlined } from '@ant-design/icons';
 import { Avatar, Button, Card, Empty, Flex, Space, Tag, Typography } from 'antd';
 
-import { PLAYER_ROLE_LABELS, PROFILE_COLORS, PROFILE_PHOTOS } from '@/constants';
+import { APP_ICONS, PLAYER_ROLE_LABELS, PROFILE_COLORS, PROFILE_PHOTOS } from '@/constants';
 import type { Player } from '@/types';
 
 type PlayersGridProps = {
@@ -55,7 +54,7 @@ export function PlayersGrid({ players, showEnterAction = false, onEnter }: Playe
               {showEnterAction ? (
                 <Button
                   shape="circle"
-                  icon={<ArrowRightOutlined />}
+                  icon={<APP_ICONS.arrowRight />}
                   onClick={() => onEnter?.(player.id)}
                 />
               ) : null}

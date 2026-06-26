@@ -1,9 +1,8 @@
-import { CheckCircleOutlined, PlayCircleOutlined } from '@ant-design/icons';
 import { App, Button, Card, Descriptions, Flex, Space, Tag, Typography } from 'antd';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { finishPlayerTurn, rollPlayerDice } from '@/api';
-import { GAME_BALANCE } from '@/constants';
+import { APP_ICONS, GAME_BALANCE } from '@/constants';
 import type { GameState, Player, Room } from '@/types';
 import { hydrateGameState, playAppAudio } from '@/utils';
 
@@ -130,7 +129,7 @@ export function MatchControlCard({ currentPlayer, players, room }: MatchControlC
             <Button
               type="primary"
               size="large"
-              icon={<PlayCircleOutlined />}
+              icon={<APP_ICONS.playCircle />}
               aria-label="Girar dados"
               disabled={!isCurrentTurn || rolling || hasRolledThisTurn || finishingTurn}
               loading={rolling}
@@ -139,7 +138,7 @@ export function MatchControlCard({ currentPlayer, players, room }: MatchControlC
             />
             <Button
               size="large"
-              icon={<CheckCircleOutlined />}
+              icon={<APP_ICONS.checkCircle />}
               aria-label="Concluir jogada"
               disabled={!isCurrentTurn || rolling || !hasRolledThisTurn}
               loading={finishingTurn}

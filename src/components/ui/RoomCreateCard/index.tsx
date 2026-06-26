@@ -1,9 +1,9 @@
-﻿import { zodResolver } from '@hookform/resolvers/zod';
-import { PlusOutlined } from '@ant-design/icons';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { App, Button, Card, Flex, Form, Space, Typography } from 'antd';
 import { useForm } from 'react-hook-form';
 
 import { ControlledTextInput } from '@/components/forms';
+import { APP_ICONS } from '@/constants';
 import { createRoomSchema, type CreateRoomInput } from '@/schemas';
 
 type RoomCreateCardProps = {
@@ -57,7 +57,7 @@ export function RoomCreateCard({ loading, onCreate }: RoomCreateCardProps) {
               htmlType="submit"
               loading={loading || isSubmitting}
               block
-              icon={<PlusOutlined />}
+              icon={<APP_ICONS.plus />}
             >
               Criar
             </Button>

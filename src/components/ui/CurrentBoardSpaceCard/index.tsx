@@ -1,15 +1,5 @@
 import { useMemo, useState } from 'react';
 import {
-  ArrowUpOutlined,
-  BankOutlined,
-  BuildOutlined,
-  CheckCircleOutlined,
-  DeleteOutlined,
-  HomeOutlined,
-  ShopOutlined,
-  ShoppingCartOutlined,
-} from '@ant-design/icons';
-import {
   Alert,
   App,
   Button,
@@ -36,20 +26,14 @@ import {
   useFiscalProtection as applyFiscalProtectionAdvantage,
 } from '@/api';
 import {
+  APP_ICONS,
   BOARD_SPACES_BY_INDEX,
   GAME_BALANCE,
   NEIGHBORHOODS,
   PROPERTY_BLUEPRINTS,
   formatBalanceRate,
 } from '@/constants';
-import type {
-  AdvantageKey,
-  BoardSpaceKind,
-  GameState,
-  Player,
-  PlayerDebt,
-  TaxPending,
-} from '@/types';
+import type { AdvantageKey, GameState, Player, PlayerDebt, TaxPending } from '@/types';
 import {
   calculateBankSettlementAmount,
   calculateFederalTaxAudit,
@@ -92,31 +76,6 @@ function getBlueprint(blueprintKey: string) {
   return PROPERTY_BLUEPRINTS.find((blueprint) => blueprint.key === blueprintKey);
 }
 
-function getSpecialSpaceStatus(kind: BoardSpaceKind) {
-  switch (kind) {
-    case 'start':
-      return 'Ponto de partida. Ao passar por aqui, seus recebiveis, manutencoes e impostos da rodada sao calculados.';
-    case 'event':
-      return 'Casa de Evento. Confirme o card sorteado para aplicar o efeito desta parada.';
-    case 'global-event':
-      return 'Casa de Evento Global. O efeito sorteado pode impactar varios jogadores da partida.';
-    case 'bank':
-      return 'Casa Banco. Aqui voce pode fazer acertos com desconto e organizar suas dividas.';
-    case 'tax':
-      return 'Receita Federal. Resolva auditorias, impostos pendentes e possiveis ajustes fiscais.';
-    case 'advantage-market':
-      return 'Mercado de Vantagens. Compre uma vantagem para usar em momentos estrategicos.';
-    case 'fiscal-embargo':
-      return 'Embargo Fiscal. Tire numeros iguais para liberar suas acoes ou use uma Protecao Fiscal.';
-    case 'bank-block':
-      return 'Bloqueio Bancario. Tire numeros iguais para liberar suas acoes ou regularize a penalidade.';
-    case 'holiday':
-      return 'Hoje e feriado e voce tirou o dia para descansar.';
-    default:
-      return 'Casa especial ativa.';
-  }
-}
-
 export function CurrentBoardSpaceCard({
   currentPlayer,
   game,
@@ -157,6 +116,13 @@ export function CurrentBoardSpaceCard({
   );
   const hasAvailableBuildSlot = propertySlotItems.some(
     (property) => !property && getAvailableBlueprintsForPropertySlot(property).length > 0,
+  );
+  const hasAffordableBuildOption = propertySlotItems.some(
+    (property) =>
+      !property &&
+      getAvailableBlueprintsForPropertySlot(property).some(
+        (blueprint) => (finance?.balance ?? 0) >= blueprint.constructionCost,
+      ),
   );
   const hasPropertyActionInCurrentVisit = hasTitlePropertyActionInCurrentVisit(
     game,
@@ -247,12 +213,10 @@ export function CurrentBoardSpaceCard({
             ? 'Ja houve uma acao de propriedade nesta casa. Role os dados para liberar a proxima.'
             : !hasAvailableBuildSlot
               ? 'Sem terrenos vazios disponiveis para construcao.'
-              : null;
-  const status = isStreet
-    ? ownerName
-      ? `${ownerName} e dono desse terreno`
-      : 'Disponivel para compra'
-    : getSpecialSpaceStatus(boardSpace.kind);
+              : !hasAffordableBuildOption
+                ? 'Saldo insuficiente'
+                : null;
+  const titleStatus = ownerName ? `Comprado por ${ownerName}` : 'Disponivel';
 
   function getSlotLabel(slotIndex: number) {
     const property = propertySlotItems[slotIndex];
@@ -582,19 +546,17 @@ export function CurrentBoardSpaceCard({
             </div>
           ) : null}
 
-          {!isOwner ? (
+          {isStreet ? (
             <Descriptions
               bordered
               column={1}
               size="small"
               className="current-space-status-descriptions"
             >
-              <Descriptions.Item label="Status">{status}</Descriptions.Item>
-              {isStreet ? (
-                <Descriptions.Item label="Terreno">
-                  {landValue > 0 ? formatMoney(landValue) : 'Valor pendente'}
-                </Descriptions.Item>
-              ) : null}
+              <Descriptions.Item label="Status">{titleStatus}</Descriptions.Item>
+              <Descriptions.Item label="Terreno">
+                {landValue > 0 ? formatMoney(landValue) : 'Valor pendente'}
+              </Descriptions.Item>
             </Descriptions>
           ) : null}
 
@@ -603,16 +565,28 @@ export function CurrentBoardSpaceCard({
               <Alert
                 type="warning"
                 showIcon
+                className="current-space-restriction-alert"
                 title={
                   activeRestriction.kind === 'bank-block'
                     ? 'Bloqueio Bancario ativo'
                     : 'Embargo Fiscal ativo'
                 }
                 description={
-                  activeRestriction.failedAttempts >=
-                  GAME_BALANCE.restrictions.requiredFailedAttemptsBeforeFine
-                    ? `Tente sair tirando numeros iguais ou pague a multa de ${formatMoney(restrictionFineAmount)}.`
-                    : `Tire numeros iguais para sair. Tentativas sem sucesso: ${activeRestriction.failedAttempts}/${GAME_BALANCE.restrictions.requiredFailedAttemptsBeforeFine}.`
+                  <Space orientation="vertical" size={6}>
+                    <Typography.Text>
+                      {activeRestriction.failedAttempts >=
+                      GAME_BALANCE.restrictions.requiredFailedAttemptsBeforeFine
+                        ? `Tente sair tirando numeros iguais ou pague a multa de ${formatMoney(restrictionFineAmount)}.`
+                        : 'Tire numeros iguais para liberar suas acoes.'}
+                    </Typography.Text>
+                    <Typography.Text
+                      type="secondary"
+                      className="current-space-restriction-alert__meta"
+                    >
+                      Tentativas sem sucesso: {activeRestriction.failedAttempts}/
+                      {GAME_BALANCE.restrictions.requiredFailedAttemptsBeforeFine}
+                    </Typography.Text>
+                  </Space>
                 }
               />
               {canUseFiscalProtection ? (
@@ -688,7 +662,7 @@ export function CurrentBoardSpaceCard({
               <Button
                 block
                 type="primary"
-                icon={<CheckCircleOutlined />}
+                icon={<APP_ICONS.checkCircle />}
                 disabled={!isCurrentPlayerTurn || federalTaxAuditConfirmed}
                 loading={spaceActionLoading === 'tax-audit'}
                 onClick={handleFederalTaxAudit}
@@ -770,7 +744,7 @@ export function CurrentBoardSpaceCard({
                   >
                     <Flex align="center" gap={8} className="board-space-property-slot__content">
                       <span className="board-space-property-icon board-space-property-icon--active">
-                        <BankOutlined />
+                        <APP_ICONS.bank />
                       </span>
                       <Space orientation="vertical" size={0}>
                         <Typography.Text strong>{getDebtSettlementLabel(debt)}</Typography.Text>
@@ -805,7 +779,7 @@ export function CurrentBoardSpaceCard({
                   >
                     <Flex align="center" gap={8} className="board-space-property-slot__content">
                       <span className="board-space-property-icon board-space-property-icon--active">
-                        <BankOutlined />
+                        <APP_ICONS.bank />
                       </span>
                       <Space orientation="vertical" size={0}>
                         <Typography.Text strong>{getTaxSettlementLabel(tax)}</Typography.Text>
@@ -873,7 +847,11 @@ export function CurrentBoardSpaceCard({
                             : 'board-space-property-icon'
                         }
                       >
-                        {blueprint?.category === 'business' ? <ShopOutlined /> : <HomeOutlined />}
+                        {blueprint?.category === 'business' ? (
+                          <APP_ICONS.shop />
+                        ) : (
+                          <APP_ICONS.home />
+                        )}
                       </span>
                       <Space orientation="vertical" size={0}>
                         <Typography.Text strong>{propertyLabel}</Typography.Text>
@@ -894,7 +872,7 @@ export function CurrentBoardSpaceCard({
                           >
                             <Button
                               size="small"
-                              icon={<ArrowUpOutlined />}
+                              icon={<APP_ICONS.arrowUp />}
                               disabled={!canUpgrade}
                               onClick={() => handleUpgradeProperty(originalSlotIndex)}
                             />
@@ -904,7 +882,7 @@ export function CurrentBoardSpaceCard({
                           <Button
                             danger
                             size="small"
-                            icon={<DeleteOutlined />}
+                            icon={<APP_ICONS.delete />}
                             disabled={!canDestroy}
                             onClick={() => handleDestroyProperty(property.id)}
                           />
@@ -923,7 +901,7 @@ export function CurrentBoardSpaceCard({
                 <Button
                   block
                   type="primary"
-                  icon={<ShoppingCartOutlined />}
+                  icon={<APP_ICONS.shoppingCart />}
                   loading={buying}
                   disabled={Boolean(buyBlockReason)}
                   onClick={handleBuyTitle}
@@ -936,7 +914,7 @@ export function CurrentBoardSpaceCard({
                 <Button
                   block
                   type="primary"
-                  icon={<BuildOutlined />}
+                  icon={<APP_ICONS.build />}
                   disabled={Boolean(buildBlockReason)}
                   onClick={openBuildModal}
                 >
@@ -944,10 +922,16 @@ export function CurrentBoardSpaceCard({
                 </Button>
               ) : null}
 
+              {buildBlockReason === 'Saldo insuficiente' && isOwner ? (
+                <Typography.Text type="secondary" className="current-space-action-hint">
+                  Saldo insuficiente
+                </Typography.Text>
+              ) : null}
+
               {buyBlockReason && !title?.ownerId ? (
                 <Typography.Text type="secondary">{buyBlockReason}</Typography.Text>
               ) : null}
-              {buildBlockReason && isOwner ? (
+              {buildBlockReason && buildBlockReason !== 'Saldo insuficiente' && isOwner ? (
                 <Typography.Text type="secondary">{buildBlockReason}</Typography.Text>
               ) : null}
             </Space>

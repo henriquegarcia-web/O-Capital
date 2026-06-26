@@ -1,25 +1,6 @@
-import {
-  AreaChartOutlined,
-  BarChartOutlined,
-  DollarOutlined,
-  LineChartOutlined,
-  NumberOutlined,
-  RiseOutlined,
-  ShoppingCartOutlined,
-} from '@ant-design/icons';
-import {
-  App,
-  Button,
-  Card,
-  Flex,
-  Form,
-  InputNumber,
-  Modal,
-  Space,
-  Tag,
-  Typography,
-} from 'antd';
+import { App, Button, Card, Flex, Form, InputNumber, Modal, Space, Tag, Typography } from 'antd';
 import { useState } from 'react';
+import { APP_ICONS } from '@/constants';
 
 import { buyPlayerStock, sellPlayerStock } from '@/api';
 import type { GameState, Player, Room, StockKey, StockMarketAsset } from '@/types';
@@ -32,6 +13,7 @@ import {
   getStockDailyChange,
   getStockHistory,
   getStockPriceRange,
+  isPlayerActionBlocked,
   STOCK_DEFINITIONS,
   STOCK_RISK_COLORS,
   STOCK_RISK_LABELS,
@@ -159,7 +141,9 @@ export function StocksMenuPanel({ currentPlayer, game, room }: StocksMenuPanelPr
     ? selectedHolding.quantity * (selectedAsset?.price ?? 0)
     : 0;
   const selectedResult = selectedCurrentValue - selectedInvested;
+  const actionBlocked = isPlayerActionBlocked(game, currentPlayer.id);
   const isTradeInvalid =
+    actionBlocked ||
     !selectedStockKey ||
     !selectedAsset ||
     selectedQuantity <= 0 ||
@@ -225,35 +209,29 @@ export function StocksMenuPanel({ currentPlayer, game, room }: StocksMenuPanelPr
     <Space orientation="vertical" size={16} style={{ width: '100%' }}>
       <Card className="bank-app-card bank-app-card--dark stocks-summary-card">
         <Space orientation="vertical" size={14} style={{ width: '100%' }}>
-          <Flex align="center" justify="space-between" gap={12} wrap>
-            <Space size={10}>
-              <LineChartOutlined />
-              <Typography.Title level={4} style={{ margin: 0 }}>
-                Investimentos
-              </Typography.Title>
-            </Space>
-            <Tag color="cyan">Dia {game.day}</Tag>
-          </Flex>
+          <Typography.Title level={4} style={{ margin: 0 }}>
+            Investimentos
+          </Typography.Title>
 
           <Flex gap={10} wrap>
             <SummaryMetric
-              icon={<NumberOutlined />}
+              icon={<APP_ICONS.number />}
               label="Cotas"
               value={String(portfolioQuantity)}
             />
             <SummaryMetric
-              icon={<DollarOutlined />}
+              icon={<APP_ICONS.dollar />}
               label="Valor investido"
               value={formatMoney(portfolioCost)}
             />
             <SummaryMetric
-              icon={<RiseOutlined />}
+              icon={<APP_ICONS.rise />}
               label="Lucro/prejuizo"
               value={formatMoney(portfolioResult)}
               tone={portfolioResult >= 0 ? 'success' : 'danger'}
             />
             <SummaryMetric
-              icon={<BarChartOutlined />}
+              icon={<APP_ICONS.barChart />}
               label="Patrimonio atual"
               value={formatMoney(portfolioValue)}
             />
@@ -276,7 +254,7 @@ export function StocksMenuPanel({ currentPlayer, game, room }: StocksMenuPanelPr
             <Space orientation="vertical" size={12} style={{ width: '100%' }}>
               <Flex align="flex-start" justify="space-between" gap={12} wrap>
                 <Space size={10} align="start" className="stock-card__identity">
-                  <AreaChartOutlined className="stock-card__icon" />
+                  <APP_ICONS.areaChart className="stock-card__icon" />
                   <Space orientation="vertical" size={2}>
                     <Typography.Title level={5} className="stock-card__title">
                       {stock.name}
@@ -336,13 +314,15 @@ export function StocksMenuPanel({ currentPlayer, game, room }: StocksMenuPanelPr
               <Flex justify="flex-end" gap={8} wrap className="stock-card__actions">
                 <Button
                   type="primary"
-                  icon={<ShoppingCartOutlined />}
+                  icon={actionBlocked ? <APP_ICONS.lock /> : <APP_ICONS.shoppingCart />}
+                  disabled={actionBlocked}
                   onClick={() => openTradeModal('buy', stock.key)}
                 >
                   Comprar
                 </Button>
                 <Button
-                  disabled={(holding?.quantity ?? 0) <= 0}
+                  icon={actionBlocked ? <APP_ICONS.lock /> : undefined}
+                  disabled={actionBlocked || (holding?.quantity ?? 0) <= 0}
                   onClick={() => openTradeModal('sell', stock.key)}
                 >
                   Vender

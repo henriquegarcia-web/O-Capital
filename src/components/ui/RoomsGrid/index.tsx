@@ -1,10 +1,5 @@
-import {
-  ArrowRightOutlined,
-  BankOutlined,
-  ClockCircleOutlined,
-  TeamOutlined,
-} from '@ant-design/icons';
 import { Button, Card, Empty, Flex, Grid, Space, Typography } from 'antd';
+import { APP_ICONS } from '@/constants';
 
 import type { RoomSummary } from '@/types';
 
@@ -35,7 +30,7 @@ export function RoomsGrid({ rooms, loading, onEnter }: RoomsGridProps) {
           <Flex className="bank-app-row" justify="space-between" gap={12} align="center">
             <Flex gap={12} align="center" style={{ minWidth: 0 }}>
               <span className="bank-app-avatar">
-                <BankOutlined />
+                <APP_ICONS.bank />
               </span>
               <Space orientation="vertical" size={4} style={{ minWidth: 0 }}>
                 <Flex align="center" gap={8} wrap>
@@ -45,13 +40,13 @@ export function RoomsGrid({ rooms, loading, onEnter }: RoomsGridProps) {
                 </Flex>
                 <Flex gap={12} wrap className="bank-app-muted">
                   <Space size={4}>
-                    <TeamOutlined />
+                    <APP_ICONS.team />
                     <Typography.Text type="secondary">
                       {room.playerCount} {room.playerCount === 1 ? 'jogador' : 'jogadores'}
                     </Typography.Text>
                   </Space>
                   <Space size={4}>
-                    <ClockCircleOutlined />
+                    <APP_ICONS.clockCircle />
                     <Typography.Text type="secondary">
                       {room.status === 'waiting' ? 'Aguardando inicio' : 'Partida ativa'}
                     </Typography.Text>
@@ -59,7 +54,11 @@ export function RoomsGrid({ rooms, loading, onEnter }: RoomsGridProps) {
                 </Flex>
               </Space>
             </Flex>
-            <Button shape="circle" icon={<ArrowRightOutlined />} onClick={() => onEnter(room.id)} />
+            <Button
+              shape="circle"
+              icon={<APP_ICONS.arrowRight />}
+              onClick={() => onEnter(room.id)}
+            />
           </Flex>
         </Card>
       ))}
