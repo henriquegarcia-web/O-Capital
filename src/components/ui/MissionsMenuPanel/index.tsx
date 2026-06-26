@@ -43,6 +43,25 @@ function formatProgressValue(mission: MissionDefinition, progress: number) {
   return `${Math.min(progress, mission.target)} / ${mission.target}`;
 }
 
+function getMissionShortTitle(mission: MissionDefinition) {
+  const labels: Partial<Record<MissionDefinition['key'], string>> = {
+    'first-title': 'Terreno',
+    'first-property': 'Construcao',
+    'first-rent': 'Aluguel',
+    'first-investment': 'Investimento',
+    'fortune-100k': 'Fortuna 100k',
+    'fortune-250k': 'Fortuna 250k',
+    'fortune-500k': 'Fortuna 500k',
+    'sell-title-player': 'Venda',
+    'buy-title-player': 'Compra',
+    'three-streets-neighborhood': 'Bairro',
+    'five-hotels': 'Hoteis',
+    'five-businesses': 'Empreendimentos',
+  };
+
+  return labels[mission.key] ?? mission.title.split(' ').slice(0, 2).join(' ');
+}
+
 export function MissionsMenuPanel({ currentPlayer, game, room }: MissionsMenuPanelProps) {
   const { message } = App.useApp();
   const [claimingMissionKey, setClaimingMissionKey] = useState<string | null>(null);
@@ -98,19 +117,24 @@ export function MissionsMenuPanel({ currentPlayer, game, room }: MissionsMenuPan
               >
                 {completed ? <CheckCircleOutlined /> : <TrophyOutlined />}
               </span>
-              <Space orientation="vertical" size={3} className="mission-card__copy">
-                <Typography.Title level={5} className="mission-card__title">
-                  {mission.title}
-                </Typography.Title>
-                <Typography.Text type="secondary" className="mission-card__reward">
-                  {formatReward(mission.reward)}
-                </Typography.Text>
-              </Space>
+              <Typography.Title level={5} className="mission-card__title">
+                {getMissionShortTitle(mission)}
+              </Typography.Title>
             </Space>
             <Tag color={claimed ? 'default' : completed ? 'green' : 'orange'}>
               {claimed ? 'Resgatada' : completed ? 'Pronta' : 'Em progresso'}
             </Tag>
           </Flex>
+
+          <Space orientation="vertical" size={4} className="mission-card__copy">
+            <Typography.Text className="mission-card__description">{mission.title}</Typography.Text>
+            <Flex align="center" justify="space-between" gap={10} wrap>
+              <Typography.Text type="secondary">Recompensa</Typography.Text>
+              <Typography.Text type="secondary" className="mission-card__reward">
+                {formatReward(mission.reward)}
+              </Typography.Text>
+            </Flex>
+          </Space>
 
           <Space orientation="vertical" size={6} className="mission-card__progress">
             <Flex justify="space-between" gap={12}>

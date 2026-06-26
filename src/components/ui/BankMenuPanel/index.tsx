@@ -73,6 +73,13 @@ function formatPropertyCount(count: number) {
   return `${count} ${count === 1 ? 'propriedade' : 'propriedades'}`;
 }
 
+function getBankScoreColor(score: number) {
+  if (score <= 10) return 'red';
+  if (score <= 50) return 'yellow';
+
+  return 'green';
+}
+
 export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPanelProps) {
   const { message, modal } = App.useApp();
   const screens = Grid.useBreakpoint();
@@ -145,10 +152,17 @@ export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPa
   const interestPercent = Math.round(BANK_LOAN_INTEREST_RATE * 100);
 
   function renderPendingAccordionLabel(label: string, count: number) {
+    const color =
+      count === 0
+        ? 'default'
+        : label === 'Dividas a receber'
+          ? 'green'
+          : 'red';
+
     return (
       <Flex align="center" justify="space-between" gap={10}>
         <span>{label}</span>
-        <Tag color={count > 0 ? 'red' : 'green'}>{count}</Tag>
+        <Tag color={color}>{count}</Tag>
       </Flex>
     );
   }
@@ -617,7 +631,7 @@ export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPa
             <Typography.Title level={4} className="player-finance-card__title">
               Banco
             </Typography.Title>
-            <Tag color={score <= 0 ? 'red' : score <= 10 ? 'orange' : 'green'}>
+            <Tag color={getBankScoreColor(score)}>
               {score} - {getBankScoreLabel(score)}
             </Tag>
           </Flex>

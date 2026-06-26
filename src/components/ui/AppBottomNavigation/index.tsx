@@ -6,12 +6,14 @@ import type { PlayerRole } from '@/types';
 
 type AppBottomNavigationProps = {
   activeMenuKey: string;
+  notificationMenuKeys?: string[];
   playerRole: PlayerRole;
   roomId: string;
 };
 
 export function AppBottomNavigation({
   activeMenuKey,
+  notificationMenuKeys = [],
   playerRole,
   roomId,
 }: AppBottomNavigationProps) {
@@ -24,6 +26,7 @@ export function AppBottomNavigation({
       <Flex justify="space-around" align="center" gap={2}>
         {visibleItems.map((item) => {
           const Icon = item.icon;
+          const hasNotification = notificationMenuKeys.includes(item.key);
 
           return (
             <NavLink
@@ -35,6 +38,9 @@ export function AppBottomNavigation({
                   : 'app-bottom-navigation__item'
               }
             >
+              {hasNotification && activeMenuKey !== item.key ? (
+                <span className="app-bottom-navigation__notification" aria-hidden="true" />
+              ) : null}
               <Icon />
               <Typography.Text>{item.label}</Typography.Text>
             </NavLink>

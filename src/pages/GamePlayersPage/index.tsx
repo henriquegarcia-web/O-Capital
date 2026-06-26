@@ -18,8 +18,15 @@ import {
   StocksMenuPanel,
   TitlesMenuPanel,
 } from '@/components/ui';
-import { useCurrentRoomPlayer, useRoom } from '@/hooks';
-import { formatMoney, getAdvantageQuantity, hydrateGameState } from '@/utils';
+import { useCurrentRoomPlayer, usePositiveCashNotifications, useRoom } from '@/hooks';
+import {
+  MISSIONS_BY_CATEGORY,
+  formatMoney,
+  getAdvantageQuantity,
+  hydrateGameState,
+  isMissionClaimed,
+  isMissionCompleted,
+} from '@/utils';
 
 function isValidMenuKey(menuKey: string | undefined): menuKey is AppMenuKey {
   if (!menuKey) {
@@ -54,6 +61,13 @@ export function GamePlayersPage() {
   const { players, room, loading } = useRoom(roomId);
   const currentPlayer = useCurrentRoomPlayer(roomId, players);
   const [confirmingStatement, setConfirmingStatement] = useState(false);
+  const currentHydratedGame = room ? hydrateGameState(room.game, players) : undefined;
+
+  usePositiveCashNotifications({
+    game: currentHydratedGame,
+    currentPlayer,
+    players,
+  });
 
   if (!roomId) {
     return <Result status="404" title="Sala nao encontrada." />;
@@ -75,6 +89,10 @@ export function GamePlayersPage() {
     return <Result status="404" title="Sala nao encontrada." />;
   }
 
+  if (!currentHydratedGame) {
+    return <Skeleton active />;
+  }
+
   if (currentPlayer.status === 'eliminated') {
     return <Result status="403" title="Este jogador foi eliminado da partida." />;
   }
@@ -85,7 +103,7 @@ export function GamePlayersPage() {
 
   const activeRoom = room;
   const activePlayer = currentPlayer;
-  const hydratedGame = hydrateGameState(activeRoom.game, players);
+  const hydratedGame = currentHydratedGame;
   const pendingToConfirm = Object.values(hydratedGame.roundPendings ?? {}).find(
     (pending) =>
       pending.playerId === activePlayer.id &&
@@ -111,6 +129,11 @@ export function GamePlayersPage() {
           taxes: 0,
           netAmount: 0,
         };
+  const hasClaimableMission = MISSIONS_BY_CATEGORY.flatMap((category) => category.missions).some(
+    (mission) =>
+      isMissionCompleted(hydratedGame, activePlayer.id, mission) &&
+      !isMissionClaimed(hydratedGame, activePlayer.id, mission.key),
+  );
 
   async function handleUseRentInsurance() {
     if (!rentPending) return;
@@ -200,7 +223,12 @@ export function GamePlayersPage() {
   return (
     <>
       {pageContent}
-      <AppBottomNavigation activeMenuKey={menuKey} playerRole={activePlayer.role} roomId={roomId} />
+      <AppBottomNavigation
+        activeMenuKey={menuKey}
+        notificationMenuKeys={hasClaimableMission ? ['missoes'] : []}
+        playerRole={activePlayer.role}
+        roomId={roomId}
+      />
 
       <Modal
         title={

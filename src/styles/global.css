@@ -336,6 +336,7 @@ body {
 }
 
 .app-bottom-navigation__item {
+  position: relative;
   display: inline-flex;
   flex: 1;
   flex-direction: column;
@@ -364,6 +365,17 @@ body {
 .app-bottom-navigation__item svg {
   width: 20px;
   height: 20px;
+}
+
+.app-bottom-navigation__notification {
+  position: absolute;
+  top: 2px;
+  right: calc(50% - 16px);
+  width: 8px;
+  height: 8px;
+  background: linear-gradient(135deg, #ff8b1f, #ff6b00);
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px rgb(239 68 68 / 16%);
 }
 
 .app-bottom-navigation__item--active,
@@ -499,6 +511,7 @@ body {
   font-size: 12px;
   letter-spacing: 0;
   opacity: 0.72;
+  margin-bottom: -2px;
 }
 
 .player-finance-card__title {
@@ -540,6 +553,25 @@ body {
 .banker-control-button {
   flex: 1 1 148px;
   min-width: 0;
+}
+
+.match-control-descriptions .ant-descriptions-item-label,
+.match-control-descriptions .ant-descriptions-item-content {
+  width: 50%;
+}
+
+.match-control-icon-button {
+  min-width: 0;
+  flex: 1 1 calc(50% - 5px);
+  height: 66px;
+
+  svg {
+    font-size: 38px;
+  }
+}
+
+.match-control-icon-button .anticon {
+  font-size: 26px;
 }
 
 .banker-config-submit {
@@ -1215,6 +1247,24 @@ body {
   border-radius: 8px;
 }
 
+.current-space-status-descriptions .ant-descriptions-item-label {
+  width: 80px;
+  min-width: 80px;
+}
+
+.current-space-status-descriptions .ant-descriptions-item-content {
+  width: auto;
+}
+
+.current-space-tax-descriptions .ant-descriptions-item-label {
+  width: auto;
+}
+
+.current-space-tax-descriptions .ant-descriptions-item-content {
+  width: 140px;
+  min-width: 140px;
+}
+
 .money-input-prefix.ant-btn[disabled] {
   color: #64736d;
   background: #f4f8f6;
@@ -1543,6 +1593,10 @@ body {
   overflow-wrap: anywhere;
 }
 
+.stock-card__actions {
+  width: 100%;
+}
+
 .mission-summary-metric {
   display: flex;
   flex: 1 1 124px;
@@ -1596,6 +1650,7 @@ body {
 }
 
 .mission-card__title,
+.mission-card__description,
 .mission-card__reward {
   display: block;
   max-width: 100%;

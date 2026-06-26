@@ -583,7 +583,12 @@ export function CurrentBoardSpaceCard({
           ) : null}
 
           {!isOwner ? (
-            <Descriptions bordered column={1} size="small">
+            <Descriptions
+              bordered
+              column={1}
+              size="small"
+              className="current-space-status-descriptions"
+            >
               <Descriptions.Item label="Status">{status}</Descriptions.Item>
               {isStreet ? (
                 <Descriptions.Item label="Terreno">
@@ -654,7 +659,12 @@ export function CurrentBoardSpaceCard({
                     : `Impostos em dia. O jogador recebe restituicao de ${federalRefundPercent} sobre o patrimonio em propriedades.`
                 }
               />
-              <Descriptions bordered column={1} size="small">
+              <Descriptions
+                bordered
+                column={1}
+                size="small"
+                className="current-space-tax-descriptions"
+              >
                 <Descriptions.Item label="Total de propriedades">
                   {formatMoney(federalTaxAudit.propertyTotal)}
                 </Descriptions.Item>

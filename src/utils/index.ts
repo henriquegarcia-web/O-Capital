@@ -1,3 +1,4 @@
+export * from './audio';
 export * from './formatters';
 export * from './currentPlayer';
 export * from './game';

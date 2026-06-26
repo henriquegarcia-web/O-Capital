@@ -1,8 +1,14 @@
 import { AreaChartOutlined, LineChartOutlined, WalletOutlined } from '@ant-design/icons';
-import { Card, Col, Row, Space, Typography } from 'antd';
+import { Card, Col, Flex, Row, Space, Typography } from 'antd';
 
 import type { GameState, Player } from '@/types';
-import { calculatePlayerNetWorth, calculatePortfolioValue, formatMoney } from '@/utils';
+import {
+  MISSIONS_BY_CATEGORY,
+  calculatePlayerNetWorth,
+  calculatePortfolioValue,
+  formatMoney,
+  isMissionCompleted,
+} from '@/utils';
 
 type PlayerFinanceCardProps = {
   game: GameState;
@@ -17,6 +23,10 @@ const metrics = [
 
 export function PlayerFinanceCard({ currentPlayer, game }: PlayerFinanceCardProps) {
   const finance = game.playerFinances[currentPlayer.id];
+  const missions = MISSIONS_BY_CATEGORY.flatMap((category) => category.missions);
+  const completedMissions = missions.filter((mission) =>
+    isMissionCompleted(game, currentPlayer.id, mission),
+  ).length;
   const values = {
     balance: formatMoney(finance?.balance ?? 0),
     netWorth: formatMoney(calculatePlayerNetWorth(game, currentPlayer.id)),
@@ -28,9 +38,14 @@ export function PlayerFinanceCard({ currentPlayer, game }: PlayerFinanceCardProp
   return (
     <Card className="player-finance-card">
       <Space orientation="vertical" size={16} style={{ width: '100%' }}>
-        <Typography.Title level={4} className="player-finance-card__title">
-          {currentPlayer.name}
-        </Typography.Title>
+        <Flex vertical>
+          <Typography.Text type="secondary" className="player-finance-card__eyebrow">
+            Ola,
+          </Typography.Text>
+          <Typography.Title level={4} className="player-finance-card__title">
+            {currentPlayer.name}
+          </Typography.Title>
+        </Flex>
 
         <Row gutter={[10, 10]}>
           {metrics.map((metric) => {
@@ -50,6 +65,17 @@ export function PlayerFinanceCard({ currentPlayer, game }: PlayerFinanceCardProp
               </Col>
             );
           })}
+          <Col xs={12} sm={8}>
+            <div className="player-finance-card__metric">
+              <LineChartOutlined />
+              <Typography.Text className="player-finance-card__metric-label">
+                Missoes concluidas
+              </Typography.Text>
+              <Typography.Text className="player-finance-card__metric-value">
+                {completedMissions} de {missions.length}
+              </Typography.Text>
+            </div>
+          </Col>
         </Row>
       </Space>
     </Card>

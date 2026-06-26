@@ -1,13 +1,11 @@
 import {
   AreaChartOutlined,
-  ArrowDownOutlined,
-  ArrowUpOutlined,
   BarChartOutlined,
   DollarOutlined,
   LineChartOutlined,
   NumberOutlined,
   RiseOutlined,
-  SwapOutlined,
+  ShoppingCartOutlined,
 } from '@ant-design/icons';
 import {
   App,
@@ -16,12 +14,12 @@ import {
   Flex,
   Form,
   InputNumber,
-  Segmented,
-  Select,
+  Modal,
   Space,
   Tag,
   Typography,
 } from 'antd';
+import { useState } from 'react';
 
 import { buyPlayerStock, sellPlayerStock } from '@/api';
 import type { GameState, Player, Room, StockKey, StockMarketAsset } from '@/types';
@@ -46,9 +44,12 @@ type StocksMenuPanelProps = {
 };
 
 type StockTradeFormValues = {
+  quantity: number;
+};
+
+type StockTradeState = {
   action: 'buy' | 'sell';
   stockKey: StockKey;
-  quantity: number;
 };
 
 function formatPercent(value: number) {
@@ -134,22 +135,30 @@ function StockSparkline({ asset }: { asset: StockMarketAsset | undefined }) {
 export function StocksMenuPanel({ currentPlayer, game, room }: StocksMenuPanelProps) {
   const { message, modal } = App.useApp();
   const [form] = Form.useForm<StockTradeFormValues>();
+  const [tradeState, setTradeState] = useState<StockTradeState | null>(null);
+  const [loadingTrade, setLoadingTrade] = useState(false);
   const portfolio = game.playerStocks[currentPlayer.id] ?? { holdings: {} };
   const availableBalance = game.playerFinances[currentPlayer.id]?.balance ?? 0;
   const portfolioValue = calculatePortfolioValue(portfolio, game.stockMarket);
   const portfolioCost = calculatePortfolioCost(portfolio);
   const portfolioQuantity = calculatePortfolioQuantity(portfolio);
   const portfolioResult = portfolioValue - portfolioCost;
-  const stockOptions = STOCK_DEFINITIONS.map((stock) => ({
-    value: stock.key,
-    label: `${stock.name} (${stock.ticker})`,
-  }));
-  const selectedStockKey = Form.useWatch('stockKey', form);
   const selectedQuantity = Number(Form.useWatch('quantity', form) ?? 0);
-  const selectedAction = Form.useWatch('action', form) ?? 'buy';
+  const selectedStockKey = tradeState?.stockKey;
+  const selectedAction = tradeState?.action ?? 'buy';
   const selectedAsset = selectedStockKey ? game.stockMarket[selectedStockKey] : undefined;
+  const selectedStock = selectedStockKey
+    ? STOCK_DEFINITIONS.find((stock) => stock.key === selectedStockKey)
+    : undefined;
   const selectedTotal = selectedAsset ? selectedAsset.price * selectedQuantity : 0;
   const selectedHolding = selectedStockKey ? portfolio.holdings[selectedStockKey] : undefined;
+  const selectedInvested = selectedHolding
+    ? selectedHolding.quantity * selectedHolding.averagePrice
+    : 0;
+  const selectedCurrentValue = selectedHolding
+    ? selectedHolding.quantity * (selectedAsset?.price ?? 0)
+    : 0;
+  const selectedResult = selectedCurrentValue - selectedInvested;
   const isTradeInvalid =
     !selectedStockKey ||
     !selectedAsset ||
@@ -157,9 +166,16 @@ export function StocksMenuPanel({ currentPlayer, game, room }: StocksMenuPanelPr
     (selectedAction === 'buy' && selectedTotal > availableBalance) ||
     (selectedAction === 'sell' && (selectedHolding?.quantity ?? 0) < selectedQuantity);
 
+  function openTradeModal(action: StockTradeState['action'], stockKey: StockKey) {
+    form.setFieldsValue({ quantity: 1 });
+    setTradeState({ action, stockKey });
+  }
+
   async function handleSubmit(values: StockTradeFormValues) {
-    const stock = STOCK_DEFINITIONS.find((item) => item.key === values.stockKey);
-    const asset = game.stockMarket[values.stockKey];
+    if (!tradeState) return;
+
+    const stock = STOCK_DEFINITIONS.find((item) => item.key === tradeState.stockKey);
+    const asset = game.stockMarket[tradeState.stockKey];
 
     if (!stock || !asset) {
       message.error('Acao indisponivel.');
@@ -168,7 +184,7 @@ export function StocksMenuPanel({ currentPlayer, game, room }: StocksMenuPanelPr
 
     const quantity = Math.floor(values.quantity);
     const totalAmount = asset.price * quantity;
-    const verb = values.action === 'buy' ? 'Comprar' : 'Vender';
+    const verb = tradeState.action === 'buy' ? 'Comprar' : 'Vender';
 
     modal.confirm({
       title: `${verb} ${stock.ticker}`,
@@ -176,25 +192,30 @@ export function StocksMenuPanel({ currentPlayer, game, room }: StocksMenuPanelPr
       okText: 'Confirmar',
       cancelText: 'Cancelar',
       async onOk() {
+        setLoadingTrade(true);
+
         try {
-          if (values.action === 'buy') {
+          if (tradeState.action === 'buy') {
             await buyPlayerStock(room.id, currentPlayer.id, {
-              stockKey: values.stockKey,
+              stockKey: tradeState.stockKey,
               quantity,
             });
           } else {
             await sellPlayerStock(room.id, currentPlayer.id, {
-              stockKey: values.stockKey,
+              stockKey: tradeState.stockKey,
               quantity,
             });
           }
 
           message.success('Operacao aplicada.');
           form.setFieldsValue({ quantity: 1 });
+          setTradeState(null);
         } catch (error) {
           message.error(
             error instanceof Error ? error.message : 'Nao foi possivel aplicar a operacao.',
           );
+        } finally {
+          setLoadingTrade(false);
         }
       },
     });
@@ -237,67 +258,6 @@ export function StocksMenuPanel({ currentPlayer, game, room }: StocksMenuPanelPr
               value={formatMoney(portfolioValue)}
             />
           </Flex>
-        </Space>
-      </Card>
-
-      <Card className="bank-app-card">
-        <Space orientation="vertical" size={14} style={{ width: '100%' }}>
-          <Flex align="center" gap={10} wrap className="bank-app-card-header">
-            <SwapOutlined className="bank-actions-card__icon" />
-            <Typography.Title level={4} style={{ margin: 0 }}>
-              Operar Acoes
-            </Typography.Title>
-          </Flex>
-
-          <Form
-            form={form}
-            layout="vertical"
-            initialValues={{ action: 'buy', quantity: 1 }}
-            onFinish={handleSubmit}
-          >
-            <Space orientation="vertical" size={12} style={{ width: '100%' }}>
-              <Form.Item label="Acao" name="stockKey" rules={[{ required: true, message: '' }]}>
-                <Select placeholder="Selecione" options={stockOptions} />
-              </Form.Item>
-
-              <Flex gap={12} wrap align="flex-start">
-                <Form.Item
-                  label="Quantidade"
-                  name="quantity"
-                  rules={[{ required: true, message: '' }]}
-                  className="stocks-trade-field"
-                >
-                  <InputNumber min={1} precision={0} controls style={{ width: '100%' }} />
-                </Form.Item>
-
-                <Form.Item
-                  label="Operacao"
-                  name="action"
-                  rules={[{ required: true, message: '' }]}
-                  className="stocks-trade-field"
-                >
-                  <Segmented
-                    block
-                    options={[
-                      { label: 'Comprar', value: 'buy', icon: <ArrowUpOutlined /> },
-                      { label: 'Vender', value: 'sell', icon: <ArrowDownOutlined /> },
-                    ]}
-                  />
-                </Form.Item>
-              </Flex>
-
-              <div className="stock-trade-preview">
-                <Typography.Text type="secondary">
-                  {selectedAction === 'buy' ? 'Custo estimado' : 'Receita estimada'}
-                </Typography.Text>
-                <Typography.Text strong>{formatMoney(selectedTotal)}</Typography.Text>
-              </div>
-
-              <Button type="primary" htmlType="submit" block disabled={isTradeInvalid}>
-                Confirmar operacao
-              </Button>
-            </Space>
-          </Form>
         </Space>
       </Card>
 
@@ -372,10 +332,99 @@ export function StocksMenuPanel({ currentPlayer, game, room }: StocksMenuPanelPr
               <Typography.Text type="secondary" className="stock-card__behavior">
                 {stock.behavior}
               </Typography.Text>
+
+              <Flex justify="flex-end" gap={8} wrap className="stock-card__actions">
+                <Button
+                  type="primary"
+                  icon={<ShoppingCartOutlined />}
+                  onClick={() => openTradeModal('buy', stock.key)}
+                >
+                  Comprar
+                </Button>
+                <Button
+                  disabled={(holding?.quantity ?? 0) <= 0}
+                  onClick={() => openTradeModal('sell', stock.key)}
+                >
+                  Vender
+                </Button>
+              </Flex>
             </Space>
           </Card>
         );
       })}
+
+      <Modal
+        title={
+          selectedStock
+            ? `${selectedAction === 'buy' ? 'Comprar' : 'Vender'} ${selectedStock.ticker}`
+            : 'Operar acao'
+        }
+        open={Boolean(tradeState)}
+        okText={selectedAction === 'buy' ? 'Comprar' : 'Vender'}
+        cancelText="Cancelar"
+        confirmLoading={loadingTrade}
+        okButtonProps={{ disabled: isTradeInvalid }}
+        onCancel={() => setTradeState(null)}
+        onOk={() => form.submit()}
+      >
+        <Form form={form} layout="vertical" initialValues={{ quantity: 1 }} onFinish={handleSubmit}>
+          <Space orientation="vertical" size={12} style={{ width: '100%' }}>
+            {selectedStock ? (
+              <div className="stock-trade-preview">
+                <Space orientation="vertical" size={0}>
+                  <Typography.Text strong>{selectedStock.name}</Typography.Text>
+                  <Typography.Text type="secondary">{selectedStock.ticker}</Typography.Text>
+                </Space>
+                <Typography.Text strong>{formatMoney(selectedAsset?.price ?? 0)}</Typography.Text>
+              </div>
+            ) : null}
+
+            <Form.Item
+              label="Quantidade"
+              name="quantity"
+              rules={[{ required: true, message: '' }]}
+              style={{ marginBottom: 0 }}
+            >
+              <InputNumber
+                min={1}
+                max={selectedAction === 'sell' ? (selectedHolding?.quantity ?? 0) : undefined}
+                precision={0}
+                controls
+                style={{ width: '100%' }}
+              />
+            </Form.Item>
+
+            <div className="stock-trade-preview">
+              <Typography.Text type="secondary">
+                {selectedAction === 'buy' ? 'Custo estimado' : 'Receita estimada'}
+              </Typography.Text>
+              <Typography.Text strong>{formatMoney(selectedTotal)}</Typography.Text>
+            </div>
+
+            {selectedAction === 'sell' ? (
+              <Space orientation="vertical" size={8} style={{ width: '100%' }}>
+                <Flex justify="space-between" gap={12}>
+                  <Typography.Text type="secondary">Quantidade disponivel</Typography.Text>
+                  <Typography.Text strong>{selectedHolding?.quantity ?? 0}</Typography.Text>
+                </Flex>
+                <Flex justify="space-between" gap={12}>
+                  <Typography.Text type="secondary">Valor gasto</Typography.Text>
+                  <Typography.Text strong>{formatMoney(selectedInvested)}</Typography.Text>
+                </Flex>
+                <Flex justify="space-between" gap={12}>
+                  <Typography.Text type="secondary">Lucro/prejuizo atual</Typography.Text>
+                  <Typography.Text
+                    strong
+                    className={selectedResult >= 0 ? 'bank-money--success' : 'bank-money--danger'}
+                  >
+                    {formatMoney(selectedResult)}
+                  </Typography.Text>
+                </Flex>
+              </Space>
+            ) : null}
+          </Space>
+        </Form>
+      </Modal>
     </Space>
   );
 }

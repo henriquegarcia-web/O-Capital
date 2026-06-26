@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { finishPlayerTurn, rollPlayerDice } from '@/api';
 import { GAME_BALANCE } from '@/constants';
 import type { GameState, Player, Room } from '@/types';
-import { hydrateGameState } from '@/utils';
+import { hydrateGameState, playAppAudio } from '@/utils';
 
 import { DiceRollOverlay } from '../DiceRollOverlay';
 
@@ -62,7 +62,6 @@ export function MatchControlCard({ currentPlayer, players, room }: MatchControlC
 
     try {
       await finishPlayerTurn(room.id, currentPlayer.id);
-      message.success('Jogada concluida.');
     } catch (error) {
       message.error(error instanceof Error ? error.message : 'Nao foi possivel concluir a jogada.');
     } finally {
@@ -72,6 +71,7 @@ export function MatchControlCard({ currentPlayer, players, room }: MatchControlC
 
   function handleRollDice() {
     clearRollTimers();
+    playAppAudio('dice');
 
     const nextDiceResult = {
       diceOne: rollDie(),
@@ -87,9 +87,7 @@ export function MatchControlCard({ currentPlayer, players, room }: MatchControlC
         setDiceResult(null);
 
         void rollPlayerDice(room.id, currentPlayer.id, nextDiceResult)
-          .then(() => {
-            message.success('Jogada contabilizada.');
-          })
+          .then(() => undefined)
           .catch((error) => {
             message.error(
               error instanceof Error ? error.message : 'Nao foi possivel girar os dados.',
@@ -118,7 +116,7 @@ export function MatchControlCard({ currentPlayer, players, room }: MatchControlC
             </Typography.Title>
           </Flex>
 
-          <Descriptions bordered column={1} size="small">
+          <Descriptions bordered column={1} size="small" className="match-control-descriptions">
             <Descriptions.Item label="Status">
               <Tag color={game.status === 'playing' ? 'green' : 'default'}>
                 {GAME_STATUS_LABELS[game.status]}
@@ -133,23 +131,21 @@ export function MatchControlCard({ currentPlayer, players, room }: MatchControlC
               type="primary"
               size="large"
               icon={<PlayCircleOutlined />}
+              aria-label="Girar dados"
               disabled={!isCurrentTurn || rolling || hasRolledThisTurn || finishingTurn}
               loading={rolling}
               onClick={handleRollDice}
-              style={{ flex: '1 1 160px' }}
-            >
-              Girar dados
-            </Button>
+              className="match-control-icon-button"
+            />
             <Button
               size="large"
               icon={<CheckCircleOutlined />}
+              aria-label="Concluir jogada"
               disabled={!isCurrentTurn || rolling || !hasRolledThisTurn}
               loading={finishingTurn}
               onClick={() => void handleFinishTurn()}
-              style={{ flex: '1 1 160px' }}
-            >
-              Concluir jogada
-            </Button>
+              className="match-control-icon-button"
+            />
           </Flex>
         </Space>
       </Card>

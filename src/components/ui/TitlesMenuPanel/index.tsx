@@ -11,6 +11,7 @@ import {
 } from '@ant-design/icons';
 import {
   App,
+  Alert,
   Button,
   Card,
   Collapse,
@@ -590,11 +591,10 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
               <Typography.Title level={4} style={{ margin: 0 }}>
                 Titulos
               </Typography.Title>
-              <Typography.Text type="secondary">
-                {myTitles.length} titulos adquiridos
-              </Typography.Text>
-            </Space>
-            <Tag color="green">Rodada {game.round}</Tag>
+            <Typography.Text type="secondary">
+              {myTitles.length} titulos adquiridos
+            </Typography.Text>
+          </Space>
           </Flex>
           <Row gutter={[10, 10]}>
             <Col xs={12}>
@@ -699,6 +699,12 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
         onCancel={() => setActionState(null)}
         onOk={() => saleForm.submit()}
       >
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginBottom: 14 }}
+          message="Alerta, um leilao aberto nao pode ser cancelado."
+        />
         <Form
           form={saleForm}
           layout="vertical"
