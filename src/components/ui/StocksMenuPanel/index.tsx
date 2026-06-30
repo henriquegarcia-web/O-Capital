@@ -264,7 +264,9 @@ export function StocksMenuPanel({ currentPlayer, game, room }: StocksMenuPanelPr
                     <Typography.Title level={5} className="stock-card__title">
                       {stock.name}
                     </Typography.Title>
-                    <Typography.Text type="secondary" style={{ fontSize: 12}}>{stock.ticker}</Typography.Text>
+                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                      {stock.ticker}
+                    </Typography.Text>
                   </Flex>
                 </Space>
                 <Space size={6} wrap>
@@ -374,6 +376,8 @@ export function StocksMenuPanel({ currentPlayer, game, room }: StocksMenuPanelPr
                 min={1}
                 max={selectedAction === 'sell' ? (selectedHolding?.quantity ?? 0) : undefined}
                 precision={0}
+                inputMode="numeric"
+                pattern="[0-9]*"
                 controls
                 style={{ width: '100%' }}
               />

@@ -1,4 +1,4 @@
-﻿import { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { App, Button, Card, Collapse, Flex, Progress, Space, Tag, Typography } from 'antd';
 
 import { claimMissionReward } from '@/api';
@@ -84,7 +84,6 @@ export function MissionsMenuPanel({ currentPlayer, game, room }: MissionsMenuPan
 
     try {
       await claimMissionReward(room.id, currentPlayer.id, mission.key);
-      message.success('Recompensa resgatada.');
     } catch (error) {
       message.error(
         error instanceof Error ? error.message : 'Nao foi possivel resgatar a recompensa.',

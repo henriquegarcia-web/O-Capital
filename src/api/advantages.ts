@@ -1,4 +1,4 @@
-﻿import { ref, runTransaction, update } from 'firebase/database';
+import { ref, runTransaction, update } from 'firebase/database';
 
 import { getRoom } from './rooms';
 import { BOARD_SPACES_BY_INDEX, GAME_BALANCE } from '@/constants';
@@ -15,11 +15,14 @@ import {
   calculateRestrictionFineAmount,
   calculateTitleAuctionDurationDays,
   calculateTitleBankSaleValue,
+  canUseCurrentBoardSpaceAction,
   createSpaceActionKey,
   getActivePlayerRestriction,
   getAdvantageDefinition,
   getPlayerAdvantageState,
+  getPlayerSpaceVisitStartedAt,
   hasCurrentSpaceAction,
+  hasUsedAdvantageThisTurn,
   hydrateGameState,
   isPlayerActionBlocked,
 } from '@/utils';
@@ -112,6 +115,38 @@ function consumeAdvantageForRound(
   const consumedState = {
     ...changeAdvantageQuantity(state, advantageKey, -1),
     usedInRound: game.round,
+  };
+
+  return {
+    ...game.playerAdvantages,
+    [playerId]: extraUpdate ? extraUpdate(consumedState) : consumedState,
+  };
+}
+
+function consumeAdvantageForTurn(
+  game: GameState,
+  playerId: string,
+  advantageKey: AdvantageKey,
+  extraUpdate?: (
+    state: ReturnType<typeof getPlayerAdvantageState>,
+  ) => ReturnType<typeof getPlayerAdvantageState>,
+) {
+  const state = getPlayerAdvantageState(game, playerId);
+
+  if (hasUsedAdvantageThisTurn(game, playerId, advantageKey)) {
+    throw new Error('Voce ja usou esta vantagem nesta vez de jogar.');
+  }
+
+  if ((state.inventory[advantageKey]?.quantity ?? 0) <= 0) {
+    throw new Error('Vantagem indisponivel no inventario.');
+  }
+
+  const consumedState = {
+    ...changeAdvantageQuantity(state, advantageKey, -1),
+    usedInTurnByKey: {
+      ...state.usedInTurnByKey,
+      [advantageKey]: game.turnStartedAt,
+    },
   };
 
   return {
@@ -248,6 +283,13 @@ export async function useFiscalProtection(roomId: string, playerId: string) {
       throw new Error('Nao ha penalidade fiscal ou bancaria ativa.');
     }
 
+    if (
+      !canUseCurrentBoardSpaceAction(game, playerId, restriction.boardIndex) ||
+      restriction.createdAt !== getPlayerSpaceVisitStartedAt(game, playerId)
+    ) {
+      throw new Error('A Protecao Fiscal so pode ser usada ao cair na casa da penalidade.');
+    }
+
     return toFirebaseValue({
       ...game,
       playerAdvantages: consumeAdvantageForRound(game, playerId, 'fiscal-protection'),
@@ -284,6 +326,14 @@ export async function useRentInsurance(roomId: string, playerId: string, pending
       pending.status !== 'pending'
     ) {
       throw new Error('Pendencia de aluguel nao encontrada.');
+    }
+
+    if (
+      !pending.boardIndex ||
+      !canUseCurrentBoardSpaceAction(game, playerId, pending.boardIndex) ||
+      pending.createdAt !== getPlayerSpaceVisitStartedAt(game, playerId)
+    ) {
+      throw new Error('Seguro Aluguel so pode ser usado ao cair na propriedade.');
     }
 
     const noticeId = crypto.randomUUID();
@@ -366,7 +416,7 @@ export async function useForceAuction(
 
     return toFirebaseValue({
       ...game,
-      playerAdvantages: consumeAdvantageForRound(game, playerId, 'force-auction'),
+      playerAdvantages: consumeAdvantageForTurn(game, playerId, 'force-auction'),
       titleAuctions: {
         ...game.titleAuctions,
         [auctionId]: {
@@ -415,7 +465,7 @@ export async function activateTaxReduction(roomId: string, playerId: string) {
 
     return toFirebaseValue({
       ...game,
-      playerAdvantages: consumeAdvantageForRound(game, playerId, 'tax-reduction', (state) => ({
+      playerAdvantages: consumeAdvantageForTurn(game, playerId, 'tax-reduction', (state) => ({
         ...state,
         taxReduction: {
           id: crypto.randomUUID(),

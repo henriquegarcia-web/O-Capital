@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 import { App, Button, Card, Flex, Modal, Result, Skeleton, Space, Typography } from 'antd';
 
@@ -28,6 +28,8 @@ import { useCurrentRoomPlayer, usePositiveCashNotifications, useRoom } from '@/h
 import {
   MISSIONS_BY_CATEGORY,
   formatMoney,
+  canUseCurrentBoardSpaceAction,
+  getPlayerSpaceVisitStartedAt,
   getAdvantageQuantity,
   hydrateGameState,
   isMissionClaimed,
@@ -124,7 +126,9 @@ export function GamePlayersPage() {
   const rentWaivedNotice =
     pendingToConfirm?.kind === 'rent-waived-notice' ? pendingToConfirm : undefined;
   const canUseRentInsurance =
-    Boolean(rentPending) &&
+    Boolean(rentPending?.boardIndex) &&
+    canUseCurrentBoardSpaceAction(hydratedGame, activePlayer.id, rentPending?.boardIndex ?? 0) &&
+    rentPending?.createdAt === getPlayerSpaceVisitStartedAt(hydratedGame, activePlayer.id) &&
     getAdvantageQuantity(hydratedGame, activePlayer.id, 'rent-insurance') > 0;
   const statementBreakdown =
     pendingToConfirm?.kind === 'statement' && pendingToConfirm.breakdown
@@ -155,6 +159,17 @@ export function GamePlayersPage() {
       isMissionCompleted(hydratedGame, activePlayer.id, mission) &&
       !isMissionClaimed(hydratedGame, activePlayer.id, mission.key),
   );
+  const hasReceivedLoanOffers = Object.values(hydratedGame.playerLoanOffers ?? {}).some(
+    (offer) => offer.lenderId === activePlayer.id && offer.status === 'pending',
+  );
+  const hasReceivedTitleOffers = Object.values(hydratedGame.titleSaleOffers ?? {}).some(
+    (offer) => offer.buyerId === activePlayer.id && offer.status === 'pending',
+  );
+  const notificationMenuKeys = [
+    ...(hasReceivedLoanOffers ? ['banco'] : []),
+    ...(hasReceivedTitleOffers ? ['titulos'] : []),
+    ...(hasClaimableMission ? ['missoes'] : []),
+  ];
 
   async function handleUseRentInsurance() {
     if (!rentPending) return;
@@ -178,13 +193,9 @@ export function GamePlayersPage() {
 
     try {
       await confirmRoundPending(activeRoom.id, activePlayer.id, pendingToConfirm.id);
-      message.success(
-        pendingToConfirm.kind === 'statement'
-          ? 'Prestacao de contas confirmada.'
-          : pendingToConfirm.kind === 'rent'
-            ? 'Aluguel pago.'
-            : 'Evento confirmado.',
-      );
+      if (pendingToConfirm.kind === 'rent') {
+        message.success('Aluguel pago.');
+      }
     } catch (error) {
       message.error(error instanceof Error ? error.message : 'Nao foi possivel confirmar.');
     } finally {
@@ -246,7 +257,7 @@ export function GamePlayersPage() {
       {pageContent}
       <AppBottomNavigation
         activeMenuKey={menuKey}
-        notificationMenuKeys={hasClaimableMission ? ['missoes'] : []}
+        notificationMenuKeys={notificationMenuKeys}
         playerRole={activePlayer.role}
         roomId={roomId}
       />

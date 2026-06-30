@@ -10,7 +10,6 @@ import {
   Flex,
   Form,
   Grid,
-  InputNumber,
   Modal,
   Select,
   Row,
@@ -32,6 +31,7 @@ import {
   requestBankLoan,
 } from '@/api';
 import { APP_ICONS } from '@/constants';
+import { MoneyInput } from '../MoneyInput';
 import type { GameState, Player, PlayerDebt, PlayerLoanOffer, Room, TaxPending } from '@/types';
 import {
   BANK_LOAN_INTEREST_RATE,
@@ -149,12 +149,17 @@ export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPa
   const interestPercent = Math.round(BANK_LOAN_INTEREST_RATE * 100);
   const actionBlocked = isPlayerActionBlocked(game, currentPlayer.id);
 
-  function renderPendingAccordionLabel(label: string, count: number) {
+  function renderPendingAccordionLabel(label: string, count: number, hasNotification = false) {
     const color = count === 0 ? 'default' : label === 'Dividas a receber' ? 'green' : 'red';
 
     return (
-      <Flex align="center" justify="space-between" gap={10}>
-        <span>{label}</span>
+      <Flex align="center" justify="space-between" gap={10} className="bank-accordion-label">
+        <span className="bank-accordion-label__title">
+          {label}
+          {hasNotification ? (
+            <span className="bank-accordion-label__notification" aria-hidden="true" />
+          ) : null}
+        </span>
         <Tag color={color}>{count}</Tag>
       </Flex>
     );
@@ -726,7 +731,6 @@ export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPa
         </Space>
       </Card>
 
-      {/* <Card className="bank-app-card bank-loan-actions-card"> */}
       <Flex gap={8} className="bank-two-actions">
         <Button
           type="primary"
@@ -747,7 +751,6 @@ export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPa
           Emprestimo Jogador
         </Button>
       </Flex>
-      {/* </Card> */}
 
       <Collapse
         className="bank-app-card bank-section-collapse"
@@ -757,6 +760,7 @@ export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPa
             label: renderPendingAccordionLabel(
               'Propostas de emprestimo',
               receivedLoanOffers.length + sentLoanOffers.length,
+              receivedLoanOffers.length > 0,
             ),
             children: screens.md ? (
               <Table
@@ -905,7 +909,7 @@ export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPa
                 <Button disabled className="money-input-prefix">
                   R$
                 </Button>
-                <InputNumber min={1} precision={0} style={{ width: '100%' }} />
+                <MoneyInput min={1} style={{ width: '100%' }} />
               </Space.Compact>
             </Form.Item>
           </Form>
@@ -959,7 +963,7 @@ export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPa
                   <Button disabled className="money-input-prefix">
                     R$
                   </Button>
-                  <InputNumber min={1} precision={0} style={{ width: '100%' }} />
+                  <MoneyInput min={1} style={{ width: '100%' }} />
                 </Space.Compact>
               </Form.Item>
             </Space>
@@ -994,12 +998,7 @@ export function BankMenuPanel({ currentPlayer, game, players, room }: BankMenuPa
               <Button disabled className="money-input-prefix">
                 R$
               </Button>
-              <InputNumber
-                min={1}
-                max={paymentState?.debt.amount}
-                precision={0}
-                style={{ width: '100%' }}
-              />
+              <MoneyInput min={1} max={paymentState?.debt.amount} style={{ width: '100%' }} />
             </Space.Compact>
           </Form.Item>
           {paymentState ? (

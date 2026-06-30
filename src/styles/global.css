@@ -1,4 +1,4 @@
-﻿* {
+* {
   box-sizing: border-box;
 }
 
@@ -1453,6 +1453,27 @@ body {
 
 .bank-section-collapse .ant-collapse-content-box {
   padding: 12px !important;
+}
+
+.bank-accordion-label {
+  width: 100%;
+  min-width: 0;
+}
+
+.bank-accordion-label__title {
+  position: relative;
+  min-width: 0;
+}
+
+.bank-accordion-label__notification {
+  position: absolute;
+  top: -2px;
+  right: -10px;
+  width: 8px;
+  height: 8px;
+  background: linear-gradient(135deg, #ff8b1f, #ff6b00);
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px rgb(239 68 68 / 16%);
 }
 
 .bank-title-values__bonus {

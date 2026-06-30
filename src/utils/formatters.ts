@@ -8,7 +8,21 @@ export function formatMoney(value: number, locale = 'pt-BR', currency = 'BRL') {
   return new Intl.NumberFormat(locale, {
     style: 'currency',
     currency,
-  }).format(value);
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(Math.round(value));
+}
+
+export function formatIntegerInputValue(value: string | number | null | undefined) {
+  const digits = onlyDigits(String(value ?? ''));
+
+  return digits ? formatNumber(Number(digits)) : '';
+}
+
+export function parseIntegerInputValue(value: string | undefined) {
+  const digits = onlyDigits(value ?? '');
+
+  return digits ? Number(digits) : 0;
 }
 
 export function formatCep(value: string) {

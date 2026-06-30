@@ -47,6 +47,7 @@ import {
   calculateTitleAuctionDurationDays,
   calculateTitleBankSaleValue,
   calculateTitleRent,
+  canUseCurrentBoardSpaceAction,
   createLapPendings,
   createSpaceActionKey,
   getActivePlayerRestriction,
@@ -210,14 +211,16 @@ function closeExpiredTitleAuctions(game: GameState, currentDay: number, now: num
       };
     }
 
+    const highestBidAmount = Math.round(highestBid.amount);
+
     const nextBuyerFinance = appendFinanceTransaction(
       {
         ...buyerFinance,
-        balance: buyerFinance.balance - highestBid.amount,
+        balance: buyerFinance.balance - highestBidAmount,
       },
       {
         kind: 'title-player-purchase',
-        amount: -highestBid.amount,
+        amount: -highestBidAmount,
         round: nextGame.round,
         description: 'Compra de titulo em leilao',
         relatedPlayerId: auction.sellerId,
@@ -228,11 +231,11 @@ function closeExpiredTitleAuctions(game: GameState, currentDay: number, now: num
     const nextSellerFinance = appendFinanceTransaction(
       {
         ...sellerFinance,
-        balance: sellerFinance.balance + highestBid.amount,
+        balance: sellerFinance.balance + highestBidAmount,
       },
       {
         kind: 'title-player-sale',
-        amount: highestBid.amount,
+        amount: highestBidAmount,
         round: nextGame.round,
         description: 'Venda de titulo em leilao',
         relatedPlayerId: highestBid.bidderId,
@@ -924,7 +927,7 @@ export async function applyBankBalanceAction(
 
   const players = toPlayersArray(room.players);
   const targetPlayer = players.find((player) => player.id === playerId);
-  const amount = Number(input.amount);
+  const amount = Math.round(Number(input.amount));
   const reason = input.reason.trim();
 
   if (!targetPlayer || targetPlayer.status === 'eliminated') {
@@ -992,7 +995,7 @@ export async function requestBankLoan(roomId: string, playerId: string, amount: 
   }
 
   const players = toPlayersArray(room.players);
-  const loanAmount = Number(amount);
+  const loanAmount = Math.round(Number(amount));
 
   if (!Number.isFinite(loanAmount) || loanAmount <= 0) {
     throw new Error('Informe um valor de emprestimo valido.');
@@ -1082,7 +1085,7 @@ export async function payDebt(roomId: string, playerId: string, debtId: string, 
   }
 
   const players = toPlayersArray(room.players);
-  const paymentAmount = Number(amount);
+  const paymentAmount = Math.round(Number(amount));
 
   if (!Number.isFinite(paymentAmount) || paymentAmount <= 0) {
     throw new Error('Informe um valor de pagamento valido.');
@@ -1100,7 +1103,7 @@ export async function payDebt(roomId: string, playerId: string, debtId: string, 
       throw new Error('Divida ativa nao encontrada.');
     }
 
-    const paidAmount = Math.min(paymentAmount, debt.amount);
+    const paidAmount = Math.round(Math.min(paymentAmount, debt.amount));
 
     if (debtorFinance.balance < paidAmount) {
       throw new Error('Saldo insuficiente para pagar esta divida.');
@@ -1108,8 +1111,8 @@ export async function payDebt(roomId: string, playerId: string, debtId: string, 
 
     const nextDebt: PlayerDebt = {
       ...debt,
-      amount: debt.amount - paidAmount,
-      status: debt.amount - paidAmount <= 0 ? 'paid' : 'active',
+      amount: Math.max(0, Math.round(debt.amount - paidAmount)),
+      status: Math.round(debt.amount - paidAmount) <= 0 ? 'paid' : 'active',
       updatedAt: now,
     };
     let nextDebtorFinance = appendFinanceTransaction(
@@ -1845,8 +1848,8 @@ export async function buyTitle(roomId: string, playerId: string, boardIndex: num
       throw new Error('Financas do jogador nao encontradas.');
     }
 
-    if (game.turnPlayerId !== playerId || game.positions[playerId] !== boardIndex) {
-      throw new Error('Compra disponivel apenas na sua vez e na casa atual.');
+    if (!canUseCurrentBoardSpaceAction(game, playerId, boardIndex)) {
+      throw new Error('Compra disponivel apenas na sua vez e ao cair na casa atual.');
     }
 
     if (hasTitlePropertyActionInCurrentVisit(game, currentTitle, playerId)) {
@@ -1955,8 +1958,10 @@ export async function buildTitleProperty(
       throw new Error('Construcao disponivel apenas a partir da proxima rodada.');
     }
 
-    if (game.turnPlayerId !== playerId || game.positions[playerId] !== boardIndex) {
-      throw new Error('Acoes de propriedade so podem ser feitas na sua vez e na casa atual.');
+    if (!canUseCurrentBoardSpaceAction(game, playerId, boardIndex)) {
+      throw new Error(
+        'Acoes de propriedade so podem ser feitas na sua vez e ao cair na casa atual.',
+      );
     }
 
     if (hasTitlePropertyActionInCurrentVisit(game, title, playerId)) {
@@ -2085,8 +2090,10 @@ export async function destroyTitleProperty(
       throw new Error('Destruicao disponivel apenas a partir da proxima rodada.');
     }
 
-    if (game.turnPlayerId !== playerId || game.positions[playerId] !== boardIndex) {
-      throw new Error('Acoes de propriedade so podem ser feitas na sua vez e na casa atual.');
+    if (!canUseCurrentBoardSpaceAction(game, playerId, boardIndex)) {
+      throw new Error(
+        'Acoes de propriedade so podem ser feitas na sua vez e ao cair na casa atual.',
+      );
     }
 
     if (hasTitlePropertyActionInCurrentVisit(game, title, playerId)) {
@@ -2210,7 +2217,7 @@ export async function createTitleSaleOffer(
   }
 
   const players = toPlayersArray(room.players);
-  const offerAmount = Number(amount);
+  const offerAmount = Math.round(Number(amount));
 
   if (sellerId === buyerId) {
     throw new Error('Selecione outro jogador para a venda.');
@@ -2291,18 +2298,20 @@ export async function acceptTitleSaleOffer(roomId: string, buyerId: string, offe
       throw new Error('Titulo ou jogadores da proposta nao encontrados.');
     }
 
-    if (buyerFinance.balance < offer.amount) {
+    const offerAmount = Math.round(offer.amount);
+
+    if (buyerFinance.balance < offerAmount) {
       throw new Error('Saldo insuficiente para aceitar a proposta.');
     }
 
     const nextBuyerFinance = appendFinanceTransaction(
       {
         ...buyerFinance,
-        balance: buyerFinance.balance - offer.amount,
+        balance: buyerFinance.balance - offerAmount,
       },
       {
         kind: 'title-player-purchase',
-        amount: -offer.amount,
+        amount: -offerAmount,
         round: game.round,
         description: 'Compra de titulo de jogador',
         relatedPlayerId: offer.sellerId,
@@ -2313,11 +2322,11 @@ export async function acceptTitleSaleOffer(roomId: string, buyerId: string, offe
     const nextSellerFinance = appendFinanceTransaction(
       {
         ...sellerFinance,
-        balance: sellerFinance.balance + offer.amount,
+        balance: sellerFinance.balance + offerAmount,
       },
       {
         kind: 'title-player-sale',
-        amount: offer.amount,
+        amount: offerAmount,
         round: game.round,
         description: 'Venda de titulo para jogador',
         relatedPlayerId: buyerId,
@@ -2404,7 +2413,7 @@ export async function createPlayerLoanOffer(
   }
 
   const players = toPlayersArray(room.players);
-  const loanAmount = Number(amount);
+  const loanAmount = Math.round(Number(amount));
 
   if (borrowerId === lenderId) {
     throw new Error('Selecione outro jogador para o emprestimo.');
@@ -2485,7 +2494,9 @@ export async function acceptPlayerLoanOffer(roomId: string, lenderId: string, of
       throw new Error('Financas dos jogadores nao encontradas.');
     }
 
-    if (lenderFinance.balance < offer.amount) {
+    const offerAmount = Math.round(offer.amount);
+
+    if (lenderFinance.balance < offerAmount) {
       throw new Error('Saldo insuficiente para aceitar este emprestimo.');
     }
 
@@ -2497,8 +2508,8 @@ export async function acceptPlayerLoanOffer(roomId: string, lenderId: string, of
         kind: 'player-loan',
         creditorId: lenderId,
         debtorId: offer.borrowerId,
-        amount: offer.amount,
-        originalAmount: offer.amount,
+        amount: offerAmount,
+        originalAmount: offerAmount,
         createdAtRound: game.round,
         sourceId: offer.id,
         description: `Emprestimo de ${lenderName} para ${borrowerName}`,
@@ -2508,7 +2519,7 @@ export async function acceptPlayerLoanOffer(roomId: string, lenderId: string, of
     const nextBorrowerFinance = appendFinanceTransaction(
       {
         ...borrowerFinance,
-        balance: borrowerFinance.balance + offer.amount,
+        balance: borrowerFinance.balance + offerAmount,
         debts: {
           ...borrowerFinance.debts,
           [debt.id]: debt,
@@ -2516,7 +2527,7 @@ export async function acceptPlayerLoanOffer(roomId: string, lenderId: string, of
       },
       {
         kind: 'player-loan-received',
-        amount: offer.amount,
+        amount: offerAmount,
         round: game.round,
         description: 'Emprestimo recebido de jogador',
         relatedPlayerId: lenderId,
@@ -2526,7 +2537,7 @@ export async function acceptPlayerLoanOffer(roomId: string, lenderId: string, of
     const nextLenderFinance = appendFinanceTransaction(
       {
         ...lenderFinance,
-        balance: lenderFinance.balance - offer.amount,
+        balance: lenderFinance.balance - offerAmount,
         receivables: {
           ...lenderFinance.receivables,
           [debt.id]: debt,
@@ -2534,7 +2545,7 @@ export async function acceptPlayerLoanOffer(roomId: string, lenderId: string, of
       },
       {
         kind: 'player-loan-sent',
-        amount: -offer.amount,
+        amount: -offerAmount,
         round: game.round,
         description: 'Emprestimo enviado a jogador',
         relatedPlayerId: offer.borrowerId,
@@ -2618,7 +2629,7 @@ export async function createTitleAuction(
   }
 
   const players = toPlayersArray(room.players);
-  const bidAmount = Number(initialBid);
+  const bidAmount = Math.round(Number(initialBid));
 
   if (!Number.isFinite(bidAmount) || bidAmount <= 0) {
     throw new Error('Informe um lance inicial valido.');
@@ -2686,7 +2697,7 @@ export async function placeTitleAuctionBid(
   }
 
   const players = toPlayersArray(room.players);
-  const bidAmount = Number(amount);
+  const bidAmount = Math.round(Number(amount));
 
   if (!Number.isFinite(bidAmount) || bidAmount <= 0) {
     throw new Error('Informe um lance valido.');
@@ -2783,18 +2794,20 @@ export async function closeTitleAuction(roomId: string, sellerId: string, auctio
       throw new Error('Titulo ou jogadores do leilao nao encontrados.');
     }
 
-    if (buyerFinance.balance < highestBid.amount) {
+    const highestBidAmount = Math.round(highestBid.amount);
+
+    if (buyerFinance.balance < highestBidAmount) {
       throw new Error('Maior ofertante nao possui saldo suficiente.');
     }
 
     const nextBuyerFinance = appendFinanceTransaction(
       {
         ...buyerFinance,
-        balance: buyerFinance.balance - highestBid.amount,
+        balance: buyerFinance.balance - highestBidAmount,
       },
       {
         kind: 'title-player-purchase',
-        amount: -highestBid.amount,
+        amount: -highestBidAmount,
         round: game.round,
         description: 'Compra de titulo em leilao',
         relatedPlayerId: sellerId,
@@ -2805,11 +2818,11 @@ export async function closeTitleAuction(roomId: string, sellerId: string, auctio
     const nextSellerFinance = appendFinanceTransaction(
       {
         ...sellerFinance,
-        balance: sellerFinance.balance + highestBid.amount,
+        balance: sellerFinance.balance + highestBidAmount,
       },
       {
         kind: 'title-player-sale',
-        amount: highestBid.amount,
+        amount: highestBidAmount,
         round: game.round,
         description: 'Venda de titulo em leilao',
         relatedPlayerId: highestBid.bidderId,

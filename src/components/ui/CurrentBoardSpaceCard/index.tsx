@@ -38,11 +38,13 @@ import {
   calculateBankSettlementAmount,
   calculateFederalTaxAudit,
   calculateRestrictionFineAmount,
+  canUseCurrentBoardSpaceAction,
   formatMoney,
   getActivePlayerRestriction,
   getAdvantageQuantity,
   getAvailableBlueprintsForPropertySlot,
   getNextRealEstateBlueprintForSlot,
+  getPlayerSpaceVisitStartedAt,
   getTitlePropertySlots,
   hasCurrentSpaceAction,
   hasTitlePropertyActionInCurrentVisit,
@@ -130,6 +132,11 @@ export function CurrentBoardSpaceCard({
     currentPlayer.id,
   );
   const isCurrentPlayerTurn = game.status === 'playing' && game.turnPlayerId === currentPlayer.id;
+  const canActOnCurrentSpace = canUseCurrentBoardSpaceAction(
+    game,
+    currentPlayer.id,
+    boardSpace.index,
+  );
   const isAtBankSpace = boardSpace.kind === 'bank';
   const isAtTaxSpace = boardSpace.kind === 'tax';
   const isAtAdvantageMarket = boardSpace.kind === 'advantage-market';
@@ -137,7 +144,8 @@ export function CurrentBoardSpaceCard({
   const actionBlocked = isPlayerActionBlocked(game, currentPlayer.id);
   const canUseFiscalProtection =
     Boolean(activeRestriction) &&
-    isCurrentPlayerTurn &&
+    canActOnCurrentSpace &&
+    activeRestriction?.createdAt === getPlayerSpaceVisitStartedAt(game, currentPlayer.id) &&
     getAdvantageQuantity(game, currentPlayer.id, 'fiscal-protection') > 0;
   const restrictionFineAmount = calculateRestrictionFineAmount(game, currentPlayer.id);
   const canPayRestrictionFine =
@@ -192,15 +200,17 @@ export function CurrentBoardSpaceCard({
     ? 'Jogador travado nao pode comprar titulos.'
     : !isCurrentPlayerTurn
       ? 'A compra fica disponivel apenas na sua vez de jogar.'
-      : !isStreet
-        ? 'Esta casa nao possui titulo.'
-        : title?.ownerId
-          ? 'Titulo indisponivel.'
-          : landValue <= 0
-            ? 'Titulo sem valor definido.'
-            : (finance?.balance ?? 0) < landValue
-              ? 'Saldo insuficiente.'
-              : null;
+      : !canActOnCurrentSpace
+        ? 'A compra fica disponivel apenas ao cair nesta casa.'
+        : !isStreet
+          ? 'Esta casa nao possui titulo.'
+          : title?.ownerId
+            ? 'Titulo indisponivel.'
+            : landValue <= 0
+              ? 'Titulo sem valor definido.'
+              : (finance?.balance ?? 0) < landValue
+                ? 'Saldo insuficiente.'
+                : null;
   const buildBlockReason = actionBlocked
     ? 'Jogador travado nao pode construir.'
     : !isOwner
@@ -209,13 +219,15 @@ export function CurrentBoardSpaceCard({
         ? 'Construcao disponivel apenas a partir da proxima rodada.'
         : !isCurrentPlayerTurn
           ? 'Acoes de propriedade disponiveis apenas na sua vez.'
-          : hasPropertyActionInCurrentVisit
-            ? 'Ja houve uma acao de propriedade nesta casa. Role os dados para liberar a proxima.'
-            : !hasAvailableBuildSlot
-              ? 'Sem terrenos vazios disponiveis para construcao.'
-              : !hasAffordableBuildOption
-                ? 'Saldo insuficiente'
-                : null;
+          : !canActOnCurrentSpace
+            ? 'Acoes de propriedade ficam disponiveis apenas ao cair nesta casa.'
+            : hasPropertyActionInCurrentVisit
+              ? 'Ja houve uma acao de propriedade nesta casa. Role os dados para liberar a proxima.'
+              : !hasAvailableBuildSlot
+                ? 'Sem terrenos vazios disponiveis para construcao.'
+                : !hasAffordableBuildOption
+                  ? 'Saldo insuficiente'
+                  : null;
   const titleStatus = ownerName ? `Comprado por ${ownerName}` : 'Disponivel';
 
   function getSlotLabel(slotIndex: number) {
@@ -820,7 +832,7 @@ export function CurrentBoardSpaceCard({
                 const canActOnProperty =
                   isOwner &&
                   title.acquiredAtRound !== game.round &&
-                  isCurrentPlayerTurn &&
+                  canActOnCurrentSpace &&
                   !hasPropertyActionInCurrentVisit;
                 const canUpgrade = Boolean(
                   property &&

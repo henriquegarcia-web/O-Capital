@@ -1,21 +1,10 @@
-﻿import {
-  App,
-  Button,
-  Card,
-  Flex,
-  Form,
-  Input,
-  InputNumber,
-  Segmented,
-  Select,
-  Space,
-  Typography,
-} from 'antd';
+import { App, Button, Card, Flex, Form, Input, Segmented, Select, Space, Typography } from 'antd';
 
 import { applyBankBalanceAction } from '@/api';
 import { APP_ICONS } from '@/constants';
 import type { Player, Room } from '@/types';
 import { formatMoney } from '@/utils';
+import { MoneyInput } from '../MoneyInput';
 
 type BankActionsCardProps = {
   room: Room;
@@ -105,13 +94,7 @@ export function BankActionsCard({ players, room }: BankActionsCardProps) {
                   <Button disabled className="money-input-prefix">
                     R$
                   </Button>
-                  <InputNumber
-                    min={1}
-                    precision={0}
-                    controls={false}
-                    placeholder="0"
-                    style={{ width: '100%' }}
-                  />
+                  <MoneyInput min={1} placeholder="0" style={{ width: '100%' }} />
                 </Space.Compact>
               </Form.Item>
             </Flex>

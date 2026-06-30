@@ -299,6 +299,7 @@ export type PlayerAdvantageState = {
   inventory: Partial<Record<AdvantageKey, PlayerAdvantageInventoryItem>>;
   taxReduction?: PlayerTaxReductionEffect;
   usedInRound?: number;
+  usedInTurnByKey?: Partial<Record<AdvantageKey, number | null>>;
 };
 
 export type MissionKey =

@@ -1,4 +1,4 @@
-﻿import {
+import {
   BOARD_SIZE,
   BOARD_SPACES_BY_INDEX,
   GAME_BALANCE,
@@ -307,6 +307,16 @@ export function canUseAdvantageThisRound(game: GameState, playerId: string) {
   return getPlayerAdvantageState(game, playerId).usedInRound !== game.round;
 }
 
+export function hasUsedAdvantageThisTurn(
+  game: GameState,
+  playerId: string,
+  advantageKey: AdvantageKey,
+) {
+  return (
+    getPlayerAdvantageState(game, playerId).usedInTurnByKey?.[advantageKey] === game.turnStartedAt
+  );
+}
+
 export function getActivePlayerRestriction(game: GameState, playerId: string) {
   return Object.values(game.playerRestrictions ?? {}).find(
     (restriction) => restriction.playerId === playerId && restriction.status === 'active',
@@ -317,6 +327,24 @@ export function isPlayerActionBlocked(game: GameState, playerId: string) {
   return Boolean(getActivePlayerRestriction(game, playerId));
 }
 
+export function hasPlayerRolledThisTurn(game: GameState, playerId: string) {
+  const lastRoll = game.playerLastRolls?.[playerId];
+
+  return Boolean(lastRoll && game.turnStartedAt && lastRoll.createdAt >= game.turnStartedAt);
+}
+
+export function canUseCurrentBoardSpaceAction(
+  game: GameState,
+  playerId: string,
+  boardIndex: number,
+) {
+  return (
+    game.status === 'playing' &&
+    game.turnPlayerId === playerId &&
+    game.positions[playerId] === boardIndex &&
+    hasPlayerRolledThisTurn(game, playerId)
+  );
+}
 export function getPlayerSpaceVisitStartedAt(game: GameState, playerId: string) {
   return game.playerLastRolls?.[playerId]?.createdAt ?? null;
 }
@@ -564,13 +592,14 @@ export function getBankScoreLabel(score: number) {
 
 export function calculateTitleTax(game: GameState, title: TitleOwnership) {
   const landValue = getTitleLandValue(title);
-
-  return (title.properties ?? []).reduce((total, property) => {
+  const taxAmount = (title.properties ?? []).reduce((total, property) => {
     const blueprint = PROPERTY_BLUEPRINTS.find((item) => item.key === property.blueprintKey);
     const taxRate = blueprint?.taxRate ?? 0;
 
     return total + (landValue + property.constructionCost) * taxRate;
   }, 0);
+
+  return Math.round(taxAmount);
 }
 
 export function isPlayerOnBankSpace(game: GameState, playerId: string) {
@@ -580,17 +609,19 @@ export function isPlayerOnBankSpace(game: GameState, playerId: string) {
 }
 
 export function getTaxPendingPayableAmount(game: GameState, playerId: string, tax: TaxPending) {
-  return isPlayerOnBankSpace(game, playerId) &&
-    game.status === 'playing' &&
-    game.turnPlayerId === playerId
-    ? calculateBankSettlementAmount(tax.amount)
-    : tax.amount;
+  return Math.round(
+    isPlayerOnBankSpace(game, playerId) &&
+      game.status === 'playing' &&
+      game.turnPlayerId === playerId
+      ? calculateBankSettlementAmount(tax.amount)
+      : tax.amount,
+  );
 }
 
 export function calculatePendingTaxTotal(game: GameState, playerId: string) {
   return Object.values(game.taxPendings ?? {}).reduce(
     (total, tax) =>
-      total + (tax.playerId === playerId && tax.status === 'pending' ? tax.amount : 0),
+      total + (tax.playerId === playerId && tax.status === 'pending' ? Math.round(tax.amount) : 0),
     0,
   );
 }
@@ -639,7 +670,7 @@ export function createLapPendings(game: GameState, playerId: string, now = Date.
     ? Math.round(originalTaxes * taxReduction.discountRate)
     : 0;
   const taxes = Math.max(0, originalTaxes - taxDiscount);
-  const netAmount = receivables - maintenance - taxes;
+  const netAmount = Math.round(receivables - maintenance - taxes);
 
   if (receivables <= 0 && maintenance <= 0 && taxes <= 0) {
     return {

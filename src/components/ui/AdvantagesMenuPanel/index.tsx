@@ -9,6 +9,7 @@ import {
   formatMoney,
   getAdvantageQuantity,
   getPlayerAdvantageState,
+  hasUsedAdvantageThisTurn,
   isPlayerActionBlocked,
 } from '@/utils';
 
@@ -37,7 +38,6 @@ export function AdvantagesMenuPanel({
   const advantageState = getPlayerAdvantageState(game, currentPlayer.id);
   const isCurrentTurn = game.status === 'playing' && game.turnPlayerId === currentPlayer.id;
   const actionBlocked = isPlayerActionBlocked(game, currentPlayer.id);
-  const usedInRound = advantageState.usedInRound === game.round;
   const targetPlayerId = Form.useWatch('playerId', form);
   const targetPlayers = players.filter(
     (player) => player.id !== currentPlayer.id && player.status !== 'eliminated',
@@ -68,21 +68,31 @@ export function AdvantagesMenuPanel({
     }
   }
 
-  function getUseBlockReason(quantity: number) {
+  function getUseBlockReason(quantity: number, alreadyUsedThisTurn: boolean) {
     if (quantity <= 0) return 'Sem unidades no inventario.';
     if (!isCurrentTurn) return 'Disponivel apenas na sua vez.';
     if (actionBlocked) return 'Jogador travado nao pode usar esta vantagem agora.';
-    if (usedInRound) return 'Limite de 1 vantagem por rodada atingido.';
+    if (alreadyUsedThisTurn) return 'Vantagem ja ativada nesta vez de jogar.';
 
     return null;
   }
 
   const forceAuctionQuantity = getAdvantageQuantity(game, currentPlayer.id, 'force-auction');
   const taxReductionQuantity = getAdvantageQuantity(game, currentPlayer.id, 'tax-reduction');
-  const forceAuctionBlockReason = getUseBlockReason(forceAuctionQuantity);
+  const forceAuctionUsedThisTurn = hasUsedAdvantageThisTurn(
+    game,
+    currentPlayer.id,
+    'force-auction',
+  );
+  const taxReductionUsedThisTurn = hasUsedAdvantageThisTurn(
+    game,
+    currentPlayer.id,
+    'tax-reduction',
+  );
+  const forceAuctionBlockReason = getUseBlockReason(forceAuctionQuantity, forceAuctionUsedThisTurn);
   const taxReductionBlockReason = advantageState.taxReduction?.remainingPasses
     ? 'Reducao de Impostos ja esta ativa.'
-    : getUseBlockReason(taxReductionQuantity);
+    : getUseBlockReason(taxReductionQuantity, taxReductionUsedThisTurn);
 
   function getAdvantageIcon(advantageKey: (typeof GAME_BALANCE.advantages.items)[number]['key']) {
     if (advantageKey === 'force-auction') return <APP_ICONS.crown />;
@@ -103,9 +113,7 @@ export function AdvantagesMenuPanel({
             Inventario estrategico do jogador
             {advantageState.taxReduction?.remainingPasses
               ? ` - Reducao ativa por ${advantageState.taxReduction.remainingPasses} passagens`
-              : usedInRound
-                ? ' - uso da rodada concluido'
-                : ''}
+              : ''}
           </Typography.Text>
         </Space>
       </Card>

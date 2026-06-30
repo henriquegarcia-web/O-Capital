@@ -1,4 +1,4 @@
-﻿import { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   App,
   Alert,
@@ -10,7 +10,6 @@ import {
   Flex,
   Form,
   Grid,
-  InputNumber,
   Modal,
   Row,
   Select,
@@ -18,6 +17,7 @@ import {
   Table,
   Tag,
   Typography,
+  Divider,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 
@@ -30,6 +30,7 @@ import {
   sellTitleToBank,
 } from '@/api';
 import { APP_ICONS, BOARD_SPACES_BY_INDEX, NEIGHBORHOODS, PROPERTY_BLUEPRINTS } from '@/constants';
+import { MoneyInput } from '../MoneyInput';
 import type {
   GameState,
   Player,
@@ -279,10 +280,15 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
     return progress.currentDay + ' de ' + progress.totalDays + ' dias';
   }
 
-  function renderListAccordionLabel(label: string, count: number) {
+  function renderListAccordionLabel(label: string, count: number, hasNotification = false) {
     return (
-      <Flex align="center" justify="space-between" gap={10}>
-        <span>{label}</span>
+      <Flex align="center" justify="space-between" gap={10} className="bank-accordion-label">
+        <span className="bank-accordion-label__title">
+          {label}
+          {hasNotification ? (
+            <span className="bank-accordion-label__notification" aria-hidden="true" />
+          ) : null}
+        </span>
         <Tag color="default">{count}</Tag>
       </Flex>
     );
@@ -668,7 +674,11 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
         items={[
           {
             key: 'received-offers',
-            label: renderListAccordionLabel('Propostas recebidas', offersToMe.length),
+            label: renderListAccordionLabel(
+              'Propostas recebidas',
+              offersToMe.length,
+              offersToMe.length > 0,
+            ),
             children: screens.md ? (
               <Table
                 rowKey="id"
@@ -716,12 +726,12 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
         onCancel={() => setActionState(null)}
         onOk={() => saleForm.submit()}
       >
-        <Space orientation="vertical" size={12} style={{ width: '100%' }}>
-          <Flex justify="space-between" gap={12} className="bank-statement-total">
-            <Typography.Text type="secondary">Valor estimado</Typography.Text>
-            <Typography.Text strong>{formatMoney(currentTitleEstimatedValue)}</Typography.Text>
-          </Flex>
-        </Space>
+        <Divider size="small" />
+        <Flex justify="space-between" gap={12}>
+          <Typography.Text type="secondary">Valor estimado</Typography.Text>
+          <Typography.Text strong>{formatMoney(currentTitleEstimatedValue)}</Typography.Text>
+        </Flex>
+        <Divider size="small" />
         <Form
           form={saleForm}
           layout="vertical"
@@ -742,24 +752,26 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
             );
           }}
         >
-          <Form.Item name="buyerId" label="Comprador" rules={[{ required: true, message: '' }]}>
-            <Select
-              placeholder="Selecione"
-              options={activePlayers.map((player) => ({ value: player.id, label: player.name }))}
-            />
-          </Form.Item>
-          <Form.Item
-            name="amount"
-            label="Valor solicitado"
-            rules={[{ required: true, message: '' }]}
-          >
-            <Space.Compact style={{ width: '100%' }}>
-              <Button disabled className="money-input-prefix">
-                R$
-              </Button>
-              <InputNumber min={1} precision={0} style={{ width: '100%' }} />
-            </Space.Compact>
-          </Form.Item>
+          <Flex vertical gap={8}>
+            <Form.Item name="buyerId" label="Comprador" rules={[{ required: true, message: '' }]}>
+              <Select
+                placeholder="Selecione"
+                options={activePlayers.map((player) => ({ value: player.id, label: player.name }))}
+              />
+            </Form.Item>
+            <Form.Item
+              name="amount"
+              label="Valor solicitado"
+              rules={[{ required: true, message: '' }]}
+            >
+              <Space.Compact style={{ width: '100%' }}>
+                <Button disabled className="money-input-prefix">
+                  R$
+                </Button>
+                <MoneyInput min={1} style={{ width: '100%' }} />
+              </Space.Compact>
+            </Form.Item>
+          </Flex>
         </Form>
       </Modal>
 
@@ -772,20 +784,18 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
         onCancel={() => setActionState(null)}
         onOk={() => auctionForm.submit()}
       >
-        <Space orientation="vertical" size={12} style={{ width: '100%', marginBottom: 14 }}>
-          <Alert
-            type="warning"
-            showIcon
-            message="Alerta, um leilao aberto nao pode ser cancelado."
-          />
-          <Flex justify="space-between" gap={12} className="bank-statement-total">
+        <Space orientation="vertical" size={6} style={{ width: '100%', marginBottom: 14 }}>
+          <Alert type="warning" title="Alerta, um leilao aberto nao pode ser cancelado." />
+          <Divider size="small" />
+          <Flex justify="space-between" gap={12}>
             <Typography.Text type="secondary">Valor estimado</Typography.Text>
             <Typography.Text strong>{formatMoney(currentTitleEstimatedValue)}</Typography.Text>
           </Flex>
-          <Flex justify="space-between" gap={12} className="bank-statement-total">
+          <Flex justify="space-between" gap={12}>
             <Typography.Text type="secondary">Prazo do leilao</Typography.Text>
-            <Typography.Text strong>0 de {auctionDurationDays} dias</Typography.Text>
+            <Typography.Text strong>{auctionDurationDays} dias</Typography.Text>
           </Flex>
+          <Divider size="small" />
         </Space>
         <Form
           form={auctionForm}
@@ -815,7 +825,7 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
               <Button disabled className="money-input-prefix">
                 R$
               </Button>
-              <InputNumber min={1} precision={0} style={{ width: '100%' }} />
+              <MoneyInput min={1} style={{ width: '100%' }} />
             </Space.Compact>
           </Form.Item>
         </Form>
@@ -852,7 +862,7 @@ export function TitlesMenuPanel({ currentPlayer, game, players, room }: TitlesMe
               <Button disabled className="money-input-prefix">
                 R$
               </Button>
-              <InputNumber min={1} precision={0} style={{ width: '100%' }} />
+              <MoneyInput min={1} style={{ width: '100%' }} />
             </Space.Compact>
           </Form.Item>
         </Form>
